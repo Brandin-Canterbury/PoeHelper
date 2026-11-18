@@ -8,6 +8,7 @@
         <ResourceDictionary Source="Theme.xaml" />
     </Window.Resources>
     <Border Background="{StaticResource PanelBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="4" Padding="12"
+            TextElement.Foreground="{StaticResource Text}" TextElement.FontFamily="Segoe UI" TextElement.FontSize="13"
             MouseLeftButtonDown="OnDrag">
         <DockPanel>
             <!-- Header -->
@@ -54,7 +55,7 @@
                 </ItemsControl>
 
                 <!-- Stat filters (tick to include) -->
-                <Expander Header="Search stats" Foreground="{StaticResource Muted}" Margin="0,8,0,0" IsExpanded="True"
+                <Expander Header="Search stats" Margin="0,8,0,0" IsExpanded="True"
                           Visibility="{Binding HasFilters, Converter={StaticResource BoolToVis}}">
                     <ItemsControl ItemsSource="{Binding Filters}" Margin="4,4,0,0">
                         <ItemsControl.ItemTemplate>

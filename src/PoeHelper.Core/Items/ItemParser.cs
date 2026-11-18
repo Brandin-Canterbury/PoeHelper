@@ -209,6 +209,8 @@ public static partial class ItemParser
                 group++;
                 continue;
             }
+            // Advanced copy adds reminder text like "(Shock increases Damage taken by ...)".
+            if (raw.StartsWith('(') && raw.EndsWith(')')) continue;
             if (header is null) group++;
 
             var line = raw;

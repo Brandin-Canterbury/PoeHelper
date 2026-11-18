@@ -6,7 +6,7 @@
     <Window.Resources>
         <ResourceDictionary Source="Overlay/Theme.xaml" />
     </Window.Resources>
-    <StackPanel Margin="16">
+    <StackPanel Margin="16" TextElement.Foreground="{StaticResource Text}" TextElement.FontFamily="Segoe UI">
         <TextBlock Text="Character (your public profile)" FontWeight="SemiBold" Foreground="{StaticResource Gold}" />
         <TextBlock Text="Account name includes the #1234 discriminator. Your profile's Characters tab must be public on pathofexile.com."
                    Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,2,0,6" />
