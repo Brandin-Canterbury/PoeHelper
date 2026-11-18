@@ -18,13 +18,13 @@ public partial class App : Application
 
         // Dev/QA: PoeHelper.exe --check <item.txt> <out.png>  runs one price check and renders the overlay.
         // It registers no hotkeys or tray icon, so it may run beside the normal instance.
-        if (e.Args.Length == 3 && e.Args[0] is "--check" or "--compare")
+        if (e.Args.Length == 3 && e.Args[0] is "--check" or "--compare" or "--upgrade")
         {
             _host = new AppHost();
             try
             {
                 if (e.Args[0] == "--check") await _host.RenderCheckAsync(e.Args[1], e.Args[2]);
-                else await _host.RenderCompareAsync(e.Args[1], e.Args[2]);
+                else await _host.RenderCompareAsync(e.Args[1], e.Args[2], e.Args[0] == "--upgrade");
             }
             catch (Exception ex) { Log.Error("--check failed", ex); }
             Shutdown();

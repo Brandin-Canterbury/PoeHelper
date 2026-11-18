@@ -31,8 +31,82 @@ public sealed class SlotTab(SlotComparison c) : Observable
     public bool Selected { get => _selected; set => Set(ref _selected, value); }
 }
 
+public sealed class UpgradeRow
+{
+    public required string Price { get; init; }
+    public required string Name { get; init; }
+    public required string Gains { get; init; }
+    public required Brush GainsBrush { get; init; }
+    public required string Age { get; init; }
+}
+
 public sealed class CompareViewModel : Observable
 {
+    // ---- find upgrade
+    string _budget = "1";
+    bool _budgetInDivines = true;
+    bool _prioritiseLife = true;
+    bool _upgradeBusy;
+    string _upgradeStatus = "";
+    string? _upgradeUrl;
+    public string Budget { get => _budget; set => Set(ref _budget, value); }
+    public bool BudgetInDivines { get => _budgetInDivines; set { Set(ref _budgetInDivines, value); Raise(nameof(BudgetInChaos)); } }
+    public bool BudgetInChaos { get => !_budgetInDivines; set => BudgetInDivines = !value; }
+    public bool PrioritiseLife { get => _prioritiseLife; set { Set(ref _prioritiseLife, value); Raise(nameof(PrioritiseDamage)); } }
+    public bool PrioritiseDamage { get => !_prioritiseLife; set => PrioritiseLife = !value; }
+    public bool UpgradeBusy { get => _upgradeBusy; set => Set(ref _upgradeBusy, value); }
+    public string UpgradeStatus { get => _upgradeStatus; set { Set(ref _upgradeStatus, value); Raise(nameof(HasUpgradeStatus)); } }
+    public bool HasUpgradeStatus => UpgradeStatus.Length > 0;
+    public string? UpgradeUrl { get => _upgradeUrl; set { Set(ref _upgradeUrl, value); Raise(nameof(HasUpgradeUrl)); } }
+    public bool HasUpgradeUrl => UpgradeUrl is not null;
+    public ObservableCollection<UpgradeRow> Upgrades { get; } = [];
+    public ObservableCollection<string> UpgradeConstraints { get; } = [];
+    public bool HasUpgrades => Upgrades.Count > 0;
+
+    public void ClearUpgrades()
+    {
+        Upgrades.Clear();
+        UpgradeConstraints.Clear();
+        UpgradeStatus = "";
+        UpgradeUrl = null;
+        Raise(nameof(HasUpgrades));
+    }
+
+    public void ShowUpgrades(PoeHelper.Core.Build.UpgradeResult r)
+    {
+        Upgrades.Clear();
+        UpgradeConstraints.Clear();
+        foreach (var c in r.Plan.Constraints) UpgradeConstraints.Add(c);
+        foreach (var c in r.Candidates.Take(10))
+        {
+            var cmp = c.Compare;
+            var parts = new List<string>();
+            double life = cmp.After.Life - cmp.Before.Life;
+            double dmg = cmp.Before.RfDamageIndex > 0 ? (cmp.After.RfDamageIndex / cmp.Before.RfDamageIndex - 1) * 100 : 0;
+            if (Math.Abs(life) >= 1) parts.Add($"{life:+0;-0} life");
+            if (Math.Abs(dmg) >= 0.1) parts.Add($"{dmg:+0.#;-0.#}% dmg");
+            if (cmp.After.HasRf && Math.Abs(cmp.After.NetRegen - cmp.Before.NetRegen) >= 1)
+                parts.Add($"{cmp.After.NetRegen - cmp.Before.NetRegen:+0;-0}/s sustain");
+            var l = c.Listing;
+            var age = DateTime.UtcNow - l.Indexed;
+            Upgrades.Add(new UpgradeRow
+            {
+                Price = $"{l.Amount:0.##} {(l.Currency == "divine" ? "div" : l.Currency == "chaos" ? "c" : l.Currency)}",
+                Name = cmp.Candidate?.Name ?? "?",
+                Gains = string.Join(" · ", parts),
+                GainsBrush = CompareRowView.SentimentBrush(cmp.Overall),
+                Age = age.TotalDays >= 1 ? $"{age.TotalDays:0}d" : $"{Math.Max(0, age.TotalHours):0}h",
+            });
+        }
+        UpgradeUrl = r.SearchUrl;
+        UpgradeStatus = r.Candidates.Count == 0
+            ? (r.Total == 0 ? "Nothing listed meets the constraints within budget. Raise the budget or try the other priority."
+                            : $"{r.Total} listed, but none of the ones checked beat your current item without breaking something.")
+            : $"Best {Math.Min(10, r.Candidates.Count)} of {(r.Total >= 10000 ? "10,000+" : r.Total.ToString("N0"))} listed, ranked by life + damage for your build"
+              + (r.Rejected > 0 ? $" ({r.Rejected} rejected: they'd break resists, sockets or requirements)" : "")
+              + ". Buy on the trade site.";
+        Raise(nameof(HasUpgrades));
+    }
     string _title = "";
     string _subtitle = "";
     Brush _titleBrush = Brushes.White;
@@ -96,6 +170,7 @@ public sealed class CompareViewModel : Observable
         };
         Rows.Clear();
         foreach (var r in c.Rows) Rows.Add(new CompareRowView(r));
+        ClearUpgrades();
         Warnings.Clear();
         foreach (var w in c.Warnings) Warnings.Add(w);
     }

@@ -209,7 +209,11 @@ public sealed class AppHost : IDisposable, IMenuActions
             if (result.Count == 0)
                 overlay.Model.ShowMessage(item.DisplayName, "Compare works on equipment: weapons, armour, jewellery and belts. Jewels, flasks and gems aren't supported yet.");
             else
+            {
+                overlay.Model.Budget = _settings.UpgradeBudget.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+                overlay.Model.BudgetInDivines = _settings.UpgradeBudgetCurrency != "chaos";
                 overlay.Model.Show(item, result, build);
+            }
         }
         catch (Exception ex)
         {
@@ -232,17 +236,42 @@ public sealed class AppHost : IDisposable, IMenuActions
 
     async Task FindUpgradeAsync()
     {
-        await Task.CompletedTask; // next step
+        var m = _compareOverlay?.Model;
+        if (m?.Selected is not { } cmp || _build is null || _data is null) return;
+        if (!double.TryParse(m.Budget, System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var budget) || budget <= 0)
+        {
+            m.UpgradeStatus = "Enter a budget, e.g. 2 (div) or 150 (c).";
+            return;
+        }
+        string currency = m.BudgetInDivines ? "divine" : "chaos";
+        _settings.UpgradeBudget = budget;
+        _settings.UpgradeBudgetCurrency = currency;
+        _settings.Save();
+        m.ClearUpgrades();
+        m.UpgradeStatus = "Searching Instant Buyout listings…";
+        try
+        {
+            var r = await UpgradeFinder.RunAsync(_client, await _data, _rates, await _build, cmp.Slot, budget, currency, _settings.League,
+                m.PrioritiseLife ? UpgradePriority.Life : UpgradePriority.Damage);
+            Log.Info($"Upgrade search {cmp.Slot}: {r.Total} listed, {r.Candidates.Count} kept, {r.Rejected} rejected");
+            m.ShowUpgrades(r);
+        }
+        catch (Exception ex)
+        {
+            Log.Error("Upgrade search failed", ex);
+            m.UpgradeStatus = Friendly(ex);
+        }
     }
 
     /// <summary>QA path: compare a saved item text against the configured character and save the overlay as a PNG.</summary>
-    public async Task RenderCompareAsync(string itemFile, string pngPath)
+    public async Task RenderCompareAsync(string itemFile, string pngPath, bool runUpgrade = false)
     {
         _compareOverlay = new CompareOverlay();
         _client.Limiter.MaxWait = TimeSpan.FromSeconds(90);
         _data = LoadDataAsync();
         _build = LoadBuildAsync();
         await ShowCompareAsync(ItemParser.Parse(await File.ReadAllTextAsync(itemFile)));
+        if (runUpgrade) await FindUpgradeAsync();
         _compareOverlay.Left = 50; _compareOverlay.Top = 50;
         _compareOverlay.Show();
         await Task.Delay(300);

@@ -18,6 +18,9 @@ public sealed class SlotComparison
     public List<string> Warnings { get; } = [];
     public string Verdict { get; set; } = "";
     public Sentiment Overall { get; set; }
+    public EquippedItem? Candidate { get; init; }
+    /// <summary>Life % + damage % change: the single number upgrades are ranked by.</summary>
+    public double Score { get; set; }
 }
 
 /// <summary>"What if the hovered item replaced the one in that slot?" against the character model.</summary>
@@ -58,16 +61,32 @@ public static class GearCompare
         foreach (var slot in SlotsFor(item))
         {
             build.Items.TryGetValue(slot, out var current);
-            var (candidate, lostGems) = ToEquipped(slot, item, current);
-            var swapped = build.WithItem(slot, candidate);
-            if (ItemCategories.IsTwoHanded(item.ItemClass) && slot == "Weapon" && build.Items.ContainsKey("Offhand"))
-                swapped = swapped.WithItem("Offhand", null);
-            var after = BuildCalculator.Compute(swapped);
-            var cmp = new SlotComparison { Slot = slot, SlotLabel = SlotLabel(slot), Current = current, Before = before, After = after };
-            Fill(cmp, before, after, lostGems, current, candidate, item, build);
-            result.Add(cmp);
+            var (candidate, _) = ToEquipped(slot, item, current);
+            result.Add(CompareEquipped(build, slot, candidate, ItemCategories.IsTwoHanded(item.ItemClass), before));
         }
         return result;
+    }
+
+    /// <summary>Compares any candidate item (clipboard or trade listing) for one slot. The slot's gems move into it.</summary>
+    public static SlotComparison CompareEquipped(CharacterBuild build, string slot, EquippedItem candidate, bool twoHanded = false, BuildStats? before = null)
+    {
+        before ??= BuildCalculator.Compute(build);
+        build.Items.TryGetValue(slot, out var current);
+        var gems = current?.Gems ?? [];
+        int fit = Math.Min(gems.Count, candidate.SocketCount);
+        var moved = new EquippedItem
+        {
+            Slot = slot, Name = candidate.Name, ItemClass = candidate.ItemClass, Mods = candidate.Mods,
+            ReqStr = candidate.ReqStr, ReqDex = candidate.ReqDex, ReqInt = candidate.ReqInt,
+            SocketCount = candidate.SocketCount, MaxLinks = candidate.MaxLinks, Gems = gems.Take(fit).ToList(), Raw = candidate.Raw,
+        };
+        var swapped = build.WithItem(slot, moved);
+        if (twoHanded && slot == "Weapon" && build.Items.ContainsKey("Offhand"))
+            swapped = swapped.WithItem("Offhand", null);
+        var after = BuildCalculator.Compute(swapped);
+        var cmp = new SlotComparison { Slot = slot, SlotLabel = SlotLabel(slot), Current = current, Before = before, After = after, Candidate = moved };
+        Fill(cmp, before, after, gems.Skip(fit).ToList(), current, moved, twoHanded, build);
+        return cmp;
     }
 
     /// <summary>The hovered item as if equipped: gems move across while sockets allow.</summary>
@@ -85,7 +104,7 @@ public static class GearCompare
         return (eq, gems.Skip(fit).ToList());
     }
 
-    static void Fill(SlotComparison c, BuildStats b, BuildStats a, List<GemInfo> lost, EquippedItem? current, EquippedItem candidate, ParsedItem item, CharacterBuild build)
+    static void Fill(SlotComparison c, BuildStats b, BuildStats a, List<GemInfo> lost, EquippedItem? current, EquippedItem candidate, bool twoHanded, CharacterBuild build)
     {
         // Life
         c.Rows.Add(Num("Life", b.Life, a.Life, higherIsBetter: true));
@@ -144,7 +163,7 @@ public static class GearCompare
                 c.Warnings.Add($"Links drop from {current.MaxLinks}L to {candidate.MaxLinks}L"
                                + (current.Gems.Any(g => g.Name.Contains("Righteous Fire")) ? ": your RF setup is in this slot." : "."));
         }
-        if (ItemCategories.IsTwoHanded(item.ItemClass) && build.Items.ContainsKey("Offhand"))
+        if (twoHanded && build.Items.ContainsKey("Offhand"))
             c.Warnings.Add("Two-handed: your off-hand would be unequipped (included above).");
 
         Summarize(c, b, a, dmgChange);
@@ -163,6 +182,7 @@ public static class GearCompare
 
         // One number to rank: life % + damage %, but anything that breaks the build wins.
         double score = lifePct + dmgChange;
+        c.Score = score;
         if (broken)
         {
             c.Overall = Sentiment.Bad;

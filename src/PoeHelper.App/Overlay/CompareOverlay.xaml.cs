@@ -30,4 +30,9 @@ public partial class CompareOverlay : Window
     void OnTab(object sender, RoutedEventArgs e) => Model.Select(((FrameworkElement)sender).DataContext as SlotTab);
     void OnFindUpgrade(object sender, RoutedEventArgs e) => FindUpgradeRequested?.Invoke();
     void OnReload(object sender, RoutedEventArgs e) => ReloadRequested?.Invoke();
+
+    void OnOpenUpgrades(object sender, RoutedEventArgs e)
+    {
+        if (Model.UpgradeUrl is { } url) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+    }
 }

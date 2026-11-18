@@ -191,6 +191,31 @@
         </Style.Triggers>
     </Style>
 
+    <!-- Segmented toggle (RadioButton drawn as a small button) -->
+    <Style x:Key="Segment" TargetType="RadioButton">
+        <Setter Property="Foreground" Value="{StaticResource Muted}" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="RadioButton">
+                    <Border x:Name="b" Background="{StaticResource ControlBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1"
+                            CornerRadius="3" Padding="8,3" Margin="0,0,3,0">
+                        <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center" />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource Gold}" />
+                            <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="b" Property="Background" Value="{StaticResource ControlHover}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Dark inputs for the settings window -->
     <Style TargetType="TextBox">
         <Setter Property="Foreground" Value="{StaticResource Text}" />

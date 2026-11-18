@@ -44,6 +44,31 @@ if (args.Length >= 4 && args[0] == "compare")
     return 0;
 }
 
+if (args.Length >= 6 && args[0] == "upgrade")
+{
+    var build = await CharacterBuild.LoadAsync(client, args[1], args[2], AppSettings.CacheDir);
+    var tdata = await TradeData.LoadAsync(client, AppSettings.CacheDir);
+    File.WriteAllText(Path.Combine(Path.GetTempPath(), "poehelper-upgrade-query.json"),
+        UpgradeFinder.Plan(build, args[3], tdata, double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture), args[5]).Query.ToJsonString());
+    var r = await UpgradeFinder.RunAsync(client, tdata, new CurrencyRates(), build, args[3],
+        double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture), args[5], settings.League,
+        args.Length > 6 ? Enum.Parse<UpgradePriority>(args[6], true) : UpgradePriority.Auto);
+    Console.WriteLine($"Upgrade for {args[3]} ({build.Items.GetValueOrDefault(args[3])?.Name}): {r.Total} listed, {r.Rejected} rejected");
+    foreach (var c in r.Plan.Constraints) Console.WriteLine($"  must: {c}");
+    foreach (var w in r.Plan.Weights) Console.WriteLine($"  weight {w.Weight,5} {w.Label}");
+    Console.WriteLine($"  current item weighted value {r.Plan.CurrentWeightedValue:0}; priority {r.Plan.Priority}, sorted by {r.Plan.SortStat}");
+    foreach (var c in r.Candidates.Take(8))
+        Console.WriteLine($"  {c.Listing.Amount} {c.Listing.Currency,-7} {c.Compare.Candidate?.Name,-40} score {c.Compare.Score:+0.0;-0.0}  {c.Compare.Verdict}");
+    if (Environment.GetEnvironmentVariable("POEHELPER_DEBUG") == "1" && r.Candidates.Count > 0)
+    {
+        var c0 = r.Candidates[0].Compare;
+        Console.WriteLine("  first candidate mods: " + string.Join(" | ", c0.Candidate!.Mods));
+        foreach (var row in c0.Rows) Console.WriteLine($"     {row.Label,-22} {row.Before,10} -> {row.After,-10} {row.Delta}");
+    }
+    Console.WriteLine($"  {r.SearchUrl}");
+    return 0;
+}
+
 if (args.Length < 2 || args[0] != "price")
 {
     Console.WriteLine("usage: price <item.txt> [...] | build <account#1234> <character>");
