@@ -4,6 +4,7 @@ using PoeHelper.App.Native;
 using PoeHelper.App.Overlay;
 using PoeHelper.App.Shell;
 using PoeHelper.Core;
+using PoeHelper.Core.Build;
 using PoeHelper.Core.Data;
 using PoeHelper.Core.Items;
 using PoeHelper.Core.Pricing;
@@ -21,6 +22,8 @@ public sealed class AppHost : IDisposable, IMenuActions
     readonly CurrencyRates _rates = new();
     KeyboardHook? _hook;
     PriceOverlay? _priceOverlay;
+    CompareOverlay? _compareOverlay;
+    Task<CharacterBuild>? _build;
     Forms.NotifyIcon? _tray;
     MenuButtonWindow? _menu;
     CancellationTokenSource? _running;
@@ -36,14 +39,18 @@ public sealed class AppHost : IDisposable, IMenuActions
         Log.Info("Starting");
         _priceOverlay = new PriceOverlay();
         _priceOverlay.SearchAgainRequested += () => _ = RerunAsync();
+        _compareOverlay = new CompareOverlay();
+        _compareOverlay.ReloadRequested += () => _ = ReloadAndRecompareAsync();
+        _compareOverlay.FindUpgradeRequested += () => _ = FindUpgradeAsync();
         CreateTray();
         _menu = new MenuButtonWindow(this);
         _menu.Show();
-        _hook = new KeyboardHook { OverlayOpen = () => _priceOverlay?.IsVisible == true };
+        _hook = new KeyboardHook { OverlayOpen = () => _priceOverlay?.IsVisible == true || _compareOverlay?.IsVisible == true };
         _hook.Escape += HideOverlays;
         BindHotkeys();
         _data = LoadDataAsync();
         _ = LoadLeaguesAsync();
+        if (CanReloadCharacter) _build = LoadBuildAsync();
 
         if (string.IsNullOrWhiteSpace(_settings.AccountName))
             _tray!.ShowBalloonTip(5000, "PoeHelper is running",
@@ -111,6 +118,7 @@ public sealed class AppHost : IDisposable, IMenuActions
             overlay.ShowNearCursor(game);
             return;
         }
+        _compareOverlay?.Hide();
         overlay.Model.BeginQuery(query);
         overlay.ShowNearCursor(game);
         await RunQueryAsync(query);
@@ -159,17 +167,88 @@ public sealed class AppHost : IDisposable, IMenuActions
         _priceOverlay.Close();
     }
 
-    // ---------------------------------------------------------------- compare (next step)
+    // ---------------------------------------------------------------- gear compare
+
+    Task<CharacterBuild> LoadBuildAsync() => Task.Run(async () =>
+    {
+        try
+        {
+            var b = await CharacterBuild.LoadAsync(_client, _settings.AccountName, _settings.CharacterName, AppSettings.CacheDir);
+            Log.Info($"Loaded character {b.Name} L{b.Level} {b.ClassName} ({b.Items.Count} items, {b.TreeStats.Count} tree lines)");
+            return b;
+        }
+        catch (Exception ex) { Log.Error("Loading character failed", ex); throw; }
+    });
 
     async Task CompareAsync()
     {
         var game = Win32.PoeForegroundWindow();
         if (game == 0) return;
-        var overlay = _priceOverlay!;
-        overlay.Model.Title = "Gear compare";
-        overlay.Model.ShowError("Gear compare isn't built yet. Price check works now.");
+        var text = await ItemCopier.CopyHoveredItemAsync(_settings.UseAdvancedCopy, TimeSpan.FromMilliseconds(600));
+        if (text is null) { HideOverlays(); return; }
+        Log.Info("Compare:\n" + text);
+        _priceOverlay?.Hide();
+        var overlay = _compareOverlay!;
+        await ShowCompareAsync(ItemParser.Parse(text));
         overlay.ShowNearCursor(game);
-        await Task.CompletedTask;
+    }
+
+    async Task ShowCompareAsync(ParsedItem item)
+    {
+        var overlay = _compareOverlay!;
+        if (!CanReloadCharacter || _build is null)
+        {
+            overlay.Model.ShowMessage("Gear compare", "Add your account name (with #1234) and character in Settings (☰ menu) first.");
+            return;
+        }
+        try
+        {
+            var build = await _build;
+            if (item.TypeLine is not null && _data is not null) item.BaseType = (await _data).ResolveBaseType(item.TypeLine);
+            var result = GearCompare.Compare(build, item);
+            if (result.Count == 0)
+                overlay.Model.ShowMessage(item.DisplayName, "Compare works on equipment: weapons, armour, jewellery and belts. Jewels, flasks and gems aren't supported yet.");
+            else
+                overlay.Model.Show(item, result, build);
+        }
+        catch (Exception ex)
+        {
+            _build = null; // let the next press retry
+            if (CanReloadCharacter) _build = LoadBuildAsync();
+            overlay.Model.ShowMessage("Gear compare", "Couldn't load your character: " + Friendly(ex));
+        }
+    }
+
+    async Task ReloadAndRecompareAsync()
+    {
+        if (!CanReloadCharacter) return;
+        _build = LoadBuildAsync();
+        if (_compareOverlay?.Model.Item is { } item)
+        {
+            _compareOverlay.Model.Busy = true;
+            await ShowCompareAsync(item);
+        }
+    }
+
+    async Task FindUpgradeAsync()
+    {
+        await Task.CompletedTask; // next step
+    }
+
+    /// <summary>QA path: compare a saved item text against the configured character and save the overlay as a PNG.</summary>
+    public async Task RenderCompareAsync(string itemFile, string pngPath)
+    {
+        _compareOverlay = new CompareOverlay();
+        _client.Limiter.MaxWait = TimeSpan.FromSeconds(90);
+        _data = LoadDataAsync();
+        _build = LoadBuildAsync();
+        await ShowCompareAsync(ItemParser.Parse(await File.ReadAllTextAsync(itemFile)));
+        _compareOverlay.Left = 50; _compareOverlay.Top = 50;
+        _compareOverlay.Show();
+        await Task.Delay(300);
+        _compareOverlay.UpdateLayout();
+        OverlaySnapshot.Save(_compareOverlay, pngPath);
+        _compareOverlay.Close();
     }
 
     // ---------------------------------------------------------------- tray / settings
@@ -200,7 +279,7 @@ public sealed class AppHost : IDisposable, IMenuActions
         : $"{_settings.League} · {_settings.CharacterName}";
     public bool CanReloadCharacter => !string.IsNullOrWhiteSpace(_settings.AccountName) && !string.IsNullOrWhiteSpace(_settings.CharacterName);
     public void ShowSettings() => OpenSettings();
-    public void ReloadCharacter() { /* gear compare: next step */ }
+    public void ReloadCharacter() { if (CanReloadCharacter) _build = LoadBuildAsync(); }
     public void RefreshTradeData() => RefreshData();
     public void OpenLog() => OpenFile(Log.FilePath);
     public void SaveSettings() => _settings.Save();
@@ -213,6 +292,7 @@ public sealed class AppHost : IDisposable, IMenuActions
         _client.Dispose();
         _client = new TradeClient(TradeClient.BuildUserAgent(_settings.Contact));
         BindHotkeys();
+        _build = CanReloadCharacter ? LoadBuildAsync() : null;
     }
 
     void RefreshData()
@@ -226,7 +306,11 @@ public sealed class AppHost : IDisposable, IMenuActions
         if (File.Exists(path)) Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
     }
 
-    void HideOverlays() => _priceOverlay?.Hide();
+    void HideOverlays()
+    {
+        _priceOverlay?.Hide();
+        _compareOverlay?.Hide();
+    }
 
     static string Friendly(Exception ex) => ex switch
     {

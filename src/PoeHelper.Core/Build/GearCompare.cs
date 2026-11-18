@@ -166,8 +166,7 @@ public static class GearCompare
         if (broken)
         {
             c.Overall = Sentiment.Bad;
-            c.Verdict = "Don't swap: " + (c.Warnings.FirstOrDefault()
-                ?? $"{c.Rows.First(r => r.Sentiment == Sentiment.Bad).Label} goes wrong.");
+            c.Verdict = "Don't swap: " + ShortReason(c);
         }
         else if (score > 0.5)
         {
@@ -184,6 +183,19 @@ public static class GearCompare
             c.Overall = Sentiment.Neutral;
             c.Verdict = "Sidegrade: about the same" + (gains.Count + losses.Count > 0 ? $" ({string.Join(", ", gains.Concat(losses))})" : "") + ".";
         }
+    }
+
+    static string ShortReason(SlotComparison c)
+    {
+        if (c.Warnings.Any(w => w.Contains("RF setup"))) return "it breaks your Righteous Fire links.";
+        if (c.Warnings.Any(w => w.Contains("wouldn't fit"))) return "your socketed gems wouldn't fit.";
+        var bad = c.Rows.FirstOrDefault(r => r.Sentiment == Sentiment.Bad);
+        return bad is null ? "it breaks a requirement." : bad.Label switch
+        {
+            var l when l.EndsWith(" res") => $"{l} drops below cap.",
+            var l when l.StartsWith("RF net") => "Righteous Fire would out-burn your regen.",
+            var l => $"{l.Split(' ')[0]} requirement not met.",
+        };
     }
 
     static CompareRow Num(string label, double before, double after, bool higherIsBetter)
