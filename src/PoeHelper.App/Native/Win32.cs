@@ -76,6 +76,62 @@ internal static partial class Win32
     [DllImport("user32.dll", SetLastError = true)]
     public static extern uint SendInput(uint nInputs, INPUT[] pInputs, int cbSize);
 
+    public const int GWL_EXSTYLE = -20;
+    public const long WS_EX_TOOLWINDOW = 0x00000080, WS_EX_NOACTIVATE = 0x08000000;
+    public const uint SWP_NOSIZE = 0x0001, SWP_NOZORDER = 0x0004, SWP_NOACTIVATE = 0x0010;
+    const int WM_GETMINMAXINFO = 0x0024;
+    const uint SPI_GETWORKAREA = 0x0030;
+
+    [StructLayout(LayoutKind.Sequential)]
+    struct MINMAXINFO { public POINT ptReserved, ptMaxSize, ptMaxPosition, ptMinTrackSize, ptMaxTrackSize; }
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW")]
+    static extern nint GetWindowLongPtr(nint hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW")]
+    static extern nint SetWindowLongPtr(nint hWnd, int nIndex, nint dwNewLong);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    public static extern bool SetWindowPos(nint hWnd, nint hWndInsertAfter, int x, int y, int cx, int cy, uint uFlags);
+
+    [DllImport("user32.dll")]
+    static extern bool SystemParametersInfo(uint uiAction, uint uiParam, out RECT pvParam, uint fWinIni);
+
+    [DllImport("user32.dll")]
+    static extern int GetSystemMetrics(int nIndex);
+
+    public static void AddExStyle(nint hWnd, long flags)
+    {
+        long style = GetWindowLongPtr(hWnd, GWL_EXSTYLE);
+        SetWindowLongPtr(hWnd, GWL_EXSTYLE, (nint)(style | flags));
+    }
+
+    public static RECT PrimaryWorkArea()
+    {
+        SystemParametersInfo(SPI_GETWORKAREA, 0, out var r, 0);
+        return r;
+    }
+
+    /// <summary>Bounding box of all monitors, in screen pixels.</summary>
+    public static RECT VirtualScreen()
+    {
+        int x = GetSystemMetrics(76), y = GetSystemMetrics(77);
+        return new RECT { Left = x, Top = y, Right = x + GetSystemMetrics(78), Bottom = y + GetSystemMetrics(79) };
+    }
+
+    /// <summary>Lets a borderless window be smaller than Windows' minimum tracking size.</summary>
+    public static nint AllowTinyWindowHook(nint hwnd, int msg, nint wParam, nint lParam, ref bool handled)
+    {
+        if (msg == WM_GETMINMAXINFO)
+        {
+            var info = Marshal.PtrToStructure<MINMAXINFO>(lParam);
+            info.ptMinTrackSize = new POINT { X = 1, Y = 1 };
+            Marshal.StructureToPtr(info, lParam, false);
+            handled = true;
+        }
+        return 0;
+    }
+
     public static string ClassName(nint hwnd)
     {
         var sb = new StringBuilder(256);

@@ -16,6 +16,9 @@ public sealed class AppSettings
     public string CompareHotkey { get; set; } = "Alt+D";
     /// <summary>Ctrl+Alt+C gives mod tiers, which picks better stats. Turn off if it misbehaves.</summary>
     public bool UseAdvancedCopy { get; set; } = true;
+    /// <summary>Saved ☰ button position in screen pixels (null = default spot).</summary>
+    public int? MenuButtonX { get; set; }
+    public int? MenuButtonY { get; set; }
     public double UpgradeBudget { get; set; } = 1;
     public string UpgradeBudgetCurrency { get; set; } = "divine";
 

@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Windows;
 using PoeHelper.App.Native;
 using PoeHelper.App.Overlay;
+using PoeHelper.App.Shell;
 using PoeHelper.Core;
 using PoeHelper.Core.Data;
 using PoeHelper.Core.Items;
@@ -12,7 +13,7 @@ using Forms = System.Windows.Forms;
 namespace PoeHelper.App;
 
 /// <summary>Owns the long-lived pieces: settings, API client, trade data, keyboard hook, tray icon and overlays.</summary>
-public sealed class AppHost : IDisposable
+public sealed class AppHost : IDisposable, IMenuActions
 {
     AppSettings _settings = AppSettings.Load();
     TradeClient _client;
@@ -21,6 +22,7 @@ public sealed class AppHost : IDisposable
     KeyboardHook? _hook;
     PriceOverlay? _priceOverlay;
     Forms.NotifyIcon? _tray;
+    MenuButtonWindow? _menu;
     CancellationTokenSource? _running;
     List<string> _leagues = ["Covens", "Hardcore Covens", "Standard", "Hardcore"];
 
@@ -35,6 +37,8 @@ public sealed class AppHost : IDisposable
         _priceOverlay = new PriceOverlay();
         _priceOverlay.SearchAgainRequested += () => _ = RerunAsync();
         CreateTray();
+        _menu = new MenuButtonWindow(this);
+        _menu.Show();
         _hook = new KeyboardHook { OverlayOpen = () => _priceOverlay?.IsVisible == true };
         _hook.Escape += HideOverlays;
         BindHotkeys();
@@ -43,7 +47,7 @@ public sealed class AppHost : IDisposable
 
         if (string.IsNullOrWhiteSpace(_settings.AccountName))
             _tray!.ShowBalloonTip(5000, "PoeHelper is running",
-                $"{_settings.PriceCheckHotkey}: price check the hovered item. Open settings from the tray to add your character for gear compare.",
+                $"{_settings.PriceCheckHotkey}: price check the hovered item. Use the ☰ button (right edge of the screen) for settings: add your character for gear compare.",
                 Forms.ToolTipIcon.Info);
         await Task.CompletedTask;
     }
@@ -177,7 +181,7 @@ public sealed class AppHost : IDisposable
         menu.Items.Add("Open log", null, (_, _) => OpenFile(Log.FilePath));
         menu.Items.Add("Refresh trade data", null, (_, _) => RefreshData());
         menu.Items.Add(new Forms.ToolStripSeparator());
-        menu.Items.Add("Exit", null, (_, _) => Application.Current.Shutdown());
+        menu.Items.Add("Exit", null, (_, _) => Quit());
         _tray = new Forms.NotifyIcon
         {
             Icon = TrayIcon.Create(),
@@ -187,6 +191,20 @@ public sealed class AppHost : IDisposable
         };
         _tray.DoubleClick += (_, _) => OpenSettings();
     }
+
+    // ---------------------------------------------------------------- ☰ menu
+
+    public AppSettings Settings => _settings;
+    public string StatusText => string.IsNullOrWhiteSpace(_settings.CharacterName)
+        ? $"{_settings.League} · no character set"
+        : $"{_settings.League} · {_settings.CharacterName}";
+    public bool CanReloadCharacter => !string.IsNullOrWhiteSpace(_settings.AccountName) && !string.IsNullOrWhiteSpace(_settings.CharacterName);
+    public void ShowSettings() => OpenSettings();
+    public void ReloadCharacter() { /* gear compare: next step */ }
+    public void RefreshTradeData() => RefreshData();
+    public void OpenLog() => OpenFile(Log.FilePath);
+    public void SaveSettings() => _settings.Save();
+    public void Quit() => Application.Current.Shutdown();
 
     void OpenSettings()
     {
@@ -223,6 +241,7 @@ public sealed class AppHost : IDisposable
     public void Dispose()
     {
         _hook?.Dispose();
+        _menu?.Close();
         if (_tray is not null) { _tray.Visible = false; _tray.Dispose(); }
         _client.Dispose();
     }
