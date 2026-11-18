@@ -82,8 +82,8 @@ public static class PriceAnalyzer
         var confidence = depth switch
         {
             0 => Confidence.None,
-            < 4 => Confidence.Low,
-            < 10 => Confidence.Medium,
+            < 5 => Confidence.Low,
+            < 20 => Confidence.Medium,
             _ => Confidence.High,
         };
         // Listings priced in divines mostly → answer in divines.

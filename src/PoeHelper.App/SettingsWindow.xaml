@@ -1,0 +1,53 @@
+<Window x:Class="PoeHelper.App.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="PoeHelper settings" Width="520" SizeToContent="Height" ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen" Background="#1A1714">
+    <Window.Resources>
+        <ResourceDictionary Source="Overlay/Theme.xaml" />
+    </Window.Resources>
+    <StackPanel Margin="16">
+        <TextBlock Text="Character (your public profile)" FontWeight="SemiBold" Foreground="{StaticResource Gold}" />
+        <TextBlock Text="Account name includes the #1234 discriminator. Your profile's Characters tab must be public on pathofexile.com."
+                   Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,2,0,6" />
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition /></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition /><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+            <TextBlock Text="Account name" VerticalAlignment="Center" />
+            <TextBox x:Name="Account" Grid.Column="1" Margin="0,2" />
+            <TextBlock Grid.Row="1" Text="Character name" VerticalAlignment="Center" />
+            <TextBox x:Name="Character" Grid.Row="1" Grid.Column="1" Margin="0,2" />
+            <TextBlock Grid.Row="2" Text="League" VerticalAlignment="Center" />
+            <ComboBox x:Name="League" Grid.Row="2" Grid.Column="1" Margin="0,2" IsEditable="True" />
+        </Grid>
+
+        <TextBlock Text="Price check" FontWeight="SemiBold" Foreground="{StaticResource Gold}" Margin="0,14,0,4" />
+        <Grid>
+            <Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition /></Grid.ColumnDefinitions>
+            <Grid.RowDefinitions><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+            <TextBlock Text="Price check hotkey" VerticalAlignment="Center" />
+            <TextBox x:Name="PriceHotkey" Grid.Column="1" Margin="0,2" />
+            <TextBlock Grid.Row="1" Text="Compare hotkey" VerticalAlignment="Center" />
+            <TextBox x:Name="CompareHotkey" Grid.Row="1" Grid.Column="1" Margin="0,2" />
+            <TextBlock Grid.Row="2" Text="Listings" VerticalAlignment="Center" />
+            <ComboBox x:Name="Status" Grid.Row="2" Grid.Column="1" Margin="0,2">
+                <ComboBoxItem Tag="securable" Content="Instant Buyout only" />
+                <ComboBoxItem Tag="available" Content="Instant Buyout and in person" />
+                <ComboBoxItem Tag="online" Content="Any online seller" />
+            </ComboBox>
+            <CheckBox x:Name="Advanced" Grid.Row="3" Grid.Column="1" Margin="0,4"
+                      Content="Use advanced copy (Ctrl+Alt+C) to read mod tiers" />
+        </Grid>
+
+        <TextBlock Text="Contact for GGG (optional)" FontWeight="SemiBold" Foreground="{StaticResource Gold}" Margin="0,14,0,2" />
+        <TextBlock Text="Added to the User-Agent so GGG can reach you if the tool misbehaves. Email or forum name."
+                   Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4" />
+        <TextBox x:Name="Contact" />
+
+        <TextBlock x:Name="ErrorText" Foreground="#E07A6A" TextWrapping="Wrap" Margin="0,8,0,0" />
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
+            <Button Content="Cancel" Style="{StaticResource FlatButton}" Margin="0,0,8,0" IsCancel="True" />
+            <Button Content="Save" Style="{StaticResource FlatButton}" IsDefault="True" Click="OnSave" />
+        </StackPanel>
+    </StackPanel>
+</Window>
