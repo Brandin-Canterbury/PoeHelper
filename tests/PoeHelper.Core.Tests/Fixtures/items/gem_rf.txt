@@ -1,0 +1,20 @@
+Item Class: Skill Gems
+Rarity: Gem
+Righteous Fire
+--------
+Spell, AoE, Fire, Duration
+Level: 20 (Max)
+Cost & Reservation Multiplier: 100%
+Cast Time: 1.00 sec
+Quality: +20% (augmented)
+--------
+Requirements:
+Level: 70
+Str: 98
+Int: 68
+--------
+Engulfs you in magical fire that rapidly burns you and nearby enemies. Your spell damage is substantially increased while under this effect. The effect ends when you have 1 life remaining.
+--------
+Place into an item socket of the right colour to gain this skill. Right click to remove from a socket.
+--------
+Corrupted

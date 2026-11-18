@@ -1,0 +1,17 @@
+Item Class: Life Flasks
+Rarity: Magic
+Bubbling Divine Life Flask of Staunching
+--------
+Recovers 2400 Life over 7.00 Seconds
+Consumes 15 of 45 Charges on use
+Currently has 45 Charges
+--------
+Requirements:
+Level: 60
+--------
+Item Level: 81
+--------
+50% of Recovery applied Instantly
+Grants Immunity to Bleeding for 6 seconds if used while Bleeding
+--------
+Right click to drink. Can only hold charges while in belt. Refills as you kill monsters.

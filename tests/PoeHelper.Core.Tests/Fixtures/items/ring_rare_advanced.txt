@@ -1,0 +1,23 @@
+Item Class: Rings
+Rarity: Rare
+Kraken Loop
+Ruby Ring
+--------
+Requirements:
+Level: 56
+--------
+Item Level: 83
+--------
+{ Implicit Modifier — Elemental, Fire, Resistance }
++25(20-30)% to Fire Resistance (implicit)
+--------
+{ Prefix Modifier "Fecund" (Tier: 2) — Life }
++75(70-79) to maximum Life
+{ Suffix Modifier "of the Furnace" (Tier: 4) — Elemental, Fire, Resistance }
++33(30-35)% to Fire Resistance
+{ Suffix Modifier "of the Ice" (Tier: 3) — Elemental, Cold, Resistance }
++38(36-41)% to Cold Resistance
+{ Prefix Modifier "Flaming" (Tier: 1) — Damage, Elemental, Fire, Attack }
+Adds 20(18-24) to 37(33-42) Fire Damage to Attacks
+{ Master Crafted Suffix Modifier "of Craft" (Rank: 3) — Attribute }
++25(21-25) to Strength (crafted)

@@ -1,0 +1,25 @@
+Item Class: Body Armours
+Rarity: Rare
+Doom Shell
+Astral Plate
+--------
+Quality: +20% (augmented)
+Armour: 1312 (augmented)
+--------
+Requirements:
+Level: 62
+Str: 180
+--------
+Sockets: R-R-R-R-R-B 
+--------
+Item Level: 84
+--------
++12% to all Elemental Resistances (implicit)
+--------
++112 to maximum Life
++42% to Fire Resistance
+-9% to Cold Resistance
++29% to Lightning Resistance
+8% reduced Attribute Requirements
+--------
+Corrupted
