@@ -15,8 +15,12 @@ public sealed partial class StatTotals
     public double MaxFire, MaxCold, MaxLightning, MaxChaos;
     public double Str, Dex, Int;
     public double FireDotMulti, DotMulti, FireDamagePct, BurningDamagePct, SpellDamagePct, ElementalDamagePct, DamagePct;
-    public double LifeRegenPct, LifeRegenFlat, MovementSpeed;
+    public double LifeRegenPct, LifeRegenFlat, LifeRegenRate, MovementSpeed;
     public double GemLevelsFire, GemLevelsAll;
+    public double StrPct, DexPct, IntPct, AttributesPct;
+    public double DamageOverTimePct, AreaDamagePct;
+    /// <summary>e.g. 50 from "Modifiers to Fire Resistance also apply to Cold and Lightning Resistances at 50% of their Value".</summary>
+    public double FireResToColdLightningPct;
 
     public double TotalElementalRes => Fire + Cold + Lightning;
 
@@ -71,6 +75,17 @@ public sealed partial class StatTotals
             case "#% increased Movement Speed": MovementSpeed += v; return true;
             case "+# to Level of Socketed Fire Gems": GemLevelsFire += v; return true;
             case "+# to Level of Socketed Gems": GemLevelsAll += v; return true;
+            case "#% increased Life Regeneration rate": LifeRegenRate += v; return true;
+            case "#% increased Strength": StrPct += v; return true;
+            case "#% increased Dexterity": DexPct += v; return true;
+            case "#% increased Intelligence": IntPct += v; return true;
+            case "#% increased Attributes": AttributesPct += v; return true;
+            case "#% increased Damage over Time": DamageOverTimePct += v; return true;
+            case "#% increased Area Damage": AreaDamagePct += v; return true;
+            case "+#% to all maximum Elemental Resistances": MaxFire += v; MaxCold += v; MaxLightning += v; return true;
+            case "+#% to all maximum Resistances": MaxFire += v; MaxCold += v; MaxLightning += v; MaxChaos += v; return true;
+            case "Modifiers to Fire Resistance also apply to Cold and Lightning Resistances at #% of their Value":
+                FireResToColdLightningPct += v; return true;
         }
 
         var m = ResRx().Match(sk);
