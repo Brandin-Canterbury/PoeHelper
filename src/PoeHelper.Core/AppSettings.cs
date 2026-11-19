@@ -14,6 +14,8 @@ public sealed class AppSettings
     public string PriceCheckStatus { get; set; } = "securable";
     public string PriceCheckHotkey { get; set; } = "Ctrl+D";
     public string CompareHotkey { get; set; } = "Alt+D";
+    /// <summary>Gem name (or part of it) of the build's main skill; blank = detect it from the links.</summary>
+    public string MainSkill { get; set; } = "";
     /// <summary>Ctrl+Alt+C gives mod tiers, which picks better stats. Turn off if it misbehaves.</summary>
     public bool UseAdvancedCopy { get; set; } = true;
     /// <summary>

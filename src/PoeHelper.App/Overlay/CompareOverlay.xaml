@@ -128,7 +128,7 @@
                             </ItemsControl>
                         </StackPanel>
                     </Grid>
-                    <TextBlock Text="Damage is a relative estimate (life × increased × DoT multi), not a PoB DPS number."
+                    <TextBlock Text="{Binding DamageNote}"
                                Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
 
                     <!-- Find upgrade -->

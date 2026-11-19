@@ -16,6 +16,7 @@ public partial class SettingsWindow : Window
         _settings = settings;
         Account.Text = settings.AccountName;
         Character.Text = settings.CharacterName;
+        MainSkill.Text = settings.MainSkill;
         foreach (var l in leagues) League.Items.Add(l);
         League.Text = settings.League;
         PriceHotkey.Text = settings.PriceCheckHotkey;
@@ -85,6 +86,7 @@ public partial class SettingsWindow : Window
         }
         _settings.AccountName = account;
         _settings.CharacterName = Character.Text.Trim();
+        _settings.MainSkill = MainSkill.Text.Trim();
         _settings.League = string.IsNullOrWhiteSpace(League.Text) ? "Covens" : League.Text.Trim();
         _settings.PriceCheckHotkey = PriceHotkey.Text.Trim();
         _settings.CompareHotkey = CompareHotkey.Text.Trim();

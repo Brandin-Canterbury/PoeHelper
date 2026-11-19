@@ -5,7 +5,7 @@ A small Windows overlay for **Path of Exile 1** (league: Covens, 3.30). Hover an
 | Hotkey | Feature | Status |
 |---|---|---|
 | **Ctrl+D** | **Price check**: finds similar listings, then gives a recommended price with reasons | ✅ working |
-| **Alt+D** | **Gear compare**: what changes if this item replaced yours (life, resists vs cap, attributes vs gem requirements, RF sustain and damage) | ✅ working |
+| **Alt+D** | **Gear compare**: what changes if this item replaced yours (life, resists vs cap, attributes vs gem requirements, your main skill's damage, RF sustain) | ✅ working |
 | button on compare | **Find upgrade**: Instant Buyout search for a better item within your budget, keeping resists capped and gem requirements met | ✅ working |
 
 An always-on **☰ button** (right edge of the screen) opens the menu: Settings, Reload character, Refresh trade data, Open log, Reset button position, Quit. **Alt+drag** moves it.
@@ -57,18 +57,34 @@ Hover any weapon, armour piece, ring, amulet or belt and press **Alt+D**. The pa
 - **Life**: from your level, gear, tree (including anoints and masteries), jewels and Strength.
 - **Resists**: after the −60 act penalty and aura gems like Purity of Elements, and including the tree's "fire resistance also applies to cold and lightning" conversion. They're compared against your real caps, with any over-cap shown as a buffer.
 - **Attributes**: compared with the highest requirement among your socketed gems and gear.
-- **RF net regen**: your life regen minus Righteous Fire's burn after fire resistance.
-- **RF damage**: a relative estimate (life × increased damage × DoT multiplier), not a PoB DPS number.
+- **Main skill damage**: a relative estimate for your main skill, not a PoB DPS number (see below).
+- **RF net regen** (Righteous Fire builds): your life regen minus RF's burn after fire resistance.
+
+### Main skill and damage
+
+The main skill is the active gem with the most supports linked to it. Auras, heralds, curses, marks, warcries, guards, golems, banners and blink/travel skills are skipped. If it picks the wrong one, type the gem name in **Settings → Main skill**. The compare panel always says which skill it scored and how.
+
+Only the stats that apply to that skill's tags count. A cold spell ignores "increased Physical Damage", for example:
+
+| Skill | Damage index |
+|---|---|
+| **Righteous Fire** | % of life × increased × DoT multiplier |
+| **Damage over time** (base damage per second, or linked to Swift Affliction, Burning Damage, Deadly/Unbound Ailments, Decay or Cruelty) | increased × the matching DoT multiplier × gem levels |
+| **Attacks** | weapon damage (from its property block, so local mods aren't counted twice) + flat added damage, × increased × attack speed × crit × gem levels |
+| **Spells** | an assumed base for the gem's level + flat added damage, × increased × cast speed × crit × gem levels |
+| **Minions** | minion damage × minion speed × gem levels |
+
+Gem levels count +10% each: socketed ones on the skill's own item, and global ones like "+1 to Level of all Minion Skill Gems". Find upgrade's weights come from the same model, so a minion build is shown minion stats, a bow build attack stats, and so on.
 
 The verdict is one line: Upgrade, Downgrade, Sidegrade or **Don't swap**. "Don't swap" means the item breaks something:
-- your RF links or gem sockets;
+- your main skill's links, or gem sockets;
 - an elemental resist falling under cap;
 - an attribute requirement no longer met;
 - RF out-burning your regen.
 
 Rings show a tab for each ring slot.
 
-What's **not** modelled: conditional mods ("while on Low Life", flasks, charges), local weapon/armour defences, and full PoB damage. Gear is fetched from your public profile when the app starts. After changing gear, click **Reload character**.
+What's **not** modelled: conditional mods ("while on Low Life", flasks, charges), damage conversion, more multipliers from support gems, ailments from hits, local armour defences, and full PoB damage. Gear is fetched from your public profile when the app starts. After changing gear, click **Reload character**.
 
 ## Find upgrade (button on the compare panel)
 

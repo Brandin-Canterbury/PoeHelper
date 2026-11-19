@@ -19,6 +19,37 @@ public sealed partial class StatTotals
     public double GemLevelsFire, GemLevelsAll;
     public double StrPct, DexPct, IntPct, AttributesPct;
     public double DamageOverTimePct, AreaDamagePct;
+    // Generic damage (any skill): per-type increases, speed, crit, flat added damage, minions.
+    public double ColdDamagePct, LightningDamagePct, PhysicalDamagePct, ChaosDamagePct;
+    public double AttackDamagePct, ProjectileDamagePct, EleAttackDamagePct, MinionDamagePct;
+    public double AttackSpeedPct, CastSpeedPct, MinionSpeedPct;
+    public double CritChancePct, SpellCritChancePct, CritMulti, SpellCritMulti;
+    public double ColdDotMulti, ChaosDotMulti, PhysDotMulti;
+    /// <summary>Average flat damage added to attacks / spells, per type.</summary>
+    public double AtkFire, AtkCold, AtkLightning, AtkPhysical, AtkChaos;
+    public double SpellFire, SpellCold, SpellLightning, SpellPhysical, SpellChaos;
+    /// <summary>"+1 to Level of all Fire Spell Skill Gems" → ("Fire Spell", 1); "+1 to Level of all Skill Gems" → ("", 1).</summary>
+    public List<(string Kind, double Levels)> GlobalGemLevels = [];
+
+    public double AddedTo(bool attack, string type) => (attack, type) switch
+    {
+        (true, "Fire") => AtkFire, (true, "Cold") => AtkCold, (true, "Lightning") => AtkLightning,
+        (true, "Physical") => AtkPhysical, (true, "Chaos") => AtkChaos,
+        (false, "Fire") => SpellFire, (false, "Cold") => SpellCold, (false, "Lightning") => SpellLightning,
+        (false, "Physical") => SpellPhysical, (false, "Chaos") => SpellChaos,
+        _ => 0,
+    };
+
+    public double IncreasedFor(string type) => type switch
+    {
+        "Fire" => FireDamagePct, "Cold" => ColdDamagePct, "Lightning" => LightningDamagePct,
+        "Physical" => PhysicalDamagePct, "Chaos" => ChaosDamagePct, _ => 0,
+    };
+
+    public double DotMultiFor(string type) => type switch
+    {
+        "Fire" => FireDotMulti, "Cold" => ColdDotMulti, "Chaos" => ChaosDotMulti, "Physical" => PhysDotMulti, _ => 0,
+    };
     /// <summary>e.g. 50 from "Modifiers to Fire Resistance also apply to Cold and Lightning Resistances at 50% of their Value".</summary>
     public double FireResToColdLightningPct;
 
@@ -41,7 +72,7 @@ public sealed partial class StatTotals
     public StatTotals Plus(StatTotals o, double sign = 1)
     {
         var r = new StatTotals();
-        foreach (var f in typeof(StatTotals).GetFields())
+        foreach (var f in typeof(StatTotals).GetFields().Where(f => f.FieldType == typeof(double)))
             f.SetValue(r, (double)f.GetValue(this)! + sign * (double)f.GetValue(o)!);
         return r;
     }
@@ -85,9 +116,46 @@ public sealed partial class StatTotals
             case "#% increased Area Damage": AreaDamagePct += v; return true;
             case "+#% to all maximum Elemental Resistances": MaxFire += v; MaxCold += v; MaxLightning += v; return true;
             case "+#% to all maximum Resistances": MaxFire += v; MaxCold += v; MaxLightning += v; MaxChaos += v; return true;
+            case "#% increased Cold Damage": ColdDamagePct += v; return true;
+            case "#% increased Lightning Damage": LightningDamagePct += v; return true;
+            case "#% increased Global Physical Damage":
+            case "#% increased Physical Damage": PhysicalDamagePct += v; return true;
+            case "#% increased Chaos Damage": ChaosDamagePct += v; return true;
+            case "#% increased Attack Damage": AttackDamagePct += v; return true;
+            case "#% increased Projectile Damage": ProjectileDamagePct += v; return true;
+            case "#% increased Elemental Damage with Attack Skills": EleAttackDamagePct += v; return true;
+            case "Minions deal #% increased Damage": MinionDamagePct += v; return true;
+            case "#% increased Attack Speed": AttackSpeedPct += v; return true;
+            case "#% increased Cast Speed": CastSpeedPct += v; return true;
+            case "#% increased Attack and Cast Speed": AttackSpeedPct += v; CastSpeedPct += v; return true;
+            case "Minions have #% increased Attack Speed":
+            case "Minions have #% increased Cast Speed":
+            case "Minions have #% increased Attack and Cast Speed": MinionSpeedPct += v; return true;
+            case "#% increased Global Critical Strike Chance":
+            case "#% increased Critical Strike Chance": CritChancePct += v; return true;
+            case "#% increased Critical Strike Chance for Spells":
+            case "#% increased Spell Critical Strike Chance": SpellCritChancePct += v; return true;
+            case "+#% to Global Critical Strike Multiplier": CritMulti += v; return true;
+            case "+#% to Critical Strike Multiplier for Spells": SpellCritMulti += v; return true;
+            case "+#% to Cold Damage over Time Multiplier": ColdDotMulti += v; return true;
+            case "+#% to Chaos Damage over Time Multiplier": ChaosDotMulti += v; return true;
+            case "+#% to Physical Damage over Time Multiplier": PhysDotMulti += v; return true;
             case "Modifiers to Fire Resistance also apply to Cold and Lightning Resistances at #% of their Value":
                 FireResToColdLightningPct += v; return true;
         }
+
+        var add = AddsRx().Match(sk);
+        if (add.Success && values.Count >= 2)
+        {
+            double avg = (values[0] + values[1]) / 2;
+            string type = add.Groups[1].Value, to = add.Groups[2].Value;
+            bool atk = to is "" or " to Attacks" or " to Spells and Attacks", spell = to is " to Spells" or " to Spells and Attacks";
+            if (atk) AddFlat(true, type, avg);
+            if (spell) AddFlat(false, type, avg);
+            return true;
+        }
+        var lvl = GemLevelRx().Match(sk);
+        if (lvl.Success) { GlobalGemLevels.Add((lvl.Groups[1].Value.Trim(), v)); return true; }
 
         var m = ResRx().Match(sk);
         if (m.Success)
@@ -115,6 +183,24 @@ public sealed partial class StatTotals
         }
         return false;
     }
+
+    void AddFlat(bool attack, string type, double avg)
+    {
+        switch (type)
+        {
+            case "Fire": if (attack) AtkFire += avg; else SpellFire += avg; break;
+            case "Cold": if (attack) AtkCold += avg; else SpellCold += avg; break;
+            case "Lightning": if (attack) AtkLightning += avg; else SpellLightning += avg; break;
+            case "Physical": if (attack) AtkPhysical += avg; else SpellPhysical += avg; break;
+            case "Chaos": if (attack) AtkChaos += avg; else SpellChaos += avg; break;
+        }
+    }
+
+    [GeneratedRegex(@"^Adds # to # (Fire|Cold|Lightning|Physical|Chaos) Damage( to Attacks| to Spells| to Spells and Attacks)?$")]
+    private static partial Regex AddsRx();
+
+    [GeneratedRegex(@"^\+# to Level of all ((?:[A-Z][a-z]+ )*?)(?:Skill )?Gems$")]
+    private static partial Regex GemLevelRx();
 
     static IEnumerable<string> Elements(string s)
     {

@@ -98,11 +98,11 @@ public sealed class CompareViewModel : Observable
             var cmp = c.Compare;
             var parts = new List<string>();
             double life = cmp.After.Life - cmp.Before.Life;
-            double dmg = cmp.Before.RfDamageIndex > 0 ? (cmp.After.RfDamageIndex / cmp.Before.RfDamageIndex - 1) * 100 : 0;
+            double dmg = GearCompare.DamageChangePct(cmp.Before, cmp.After);
             if (Math.Abs(life) >= 1) parts.Add($"{life:+0;-0} life");
             if (Math.Abs(dmg) >= 0.1) parts.Add($"{dmg:+0.#;-0.#}% dmg");
             if (cmp.After.HasRf && Math.Abs(cmp.After.NetRegen - cmp.Before.NetRegen) >= 1)
-                parts.Add($"{cmp.After.NetRegen - cmp.Before.NetRegen:+0;-0}/s sustain");
+                parts.Add($"{cmp.After.NetRegen - cmp.Before.NetRegen:+0;-0}/s RF sustain");
             var l = c.Listing;
             var age = DateTime.UtcNow - l.Indexed;
             Upgrades.Add(new UpgradeRow
@@ -139,6 +139,8 @@ public sealed class CompareViewModel : Observable
 
     public string Title { get => _title; set => Set(ref _title, value); }
     public string Subtitle { get => _subtitle; set => Set(ref _subtitle, value); }
+    string _damageNote = "";
+    public string DamageNote { get => _damageNote; set => Set(ref _damageNote, value); }
     public Brush TitleBrush { get => _titleBrush; set => Set(ref _titleBrush, value); }
     public string CurrentItem { get => _currentItem; set => Set(ref _currentItem, value); }
     public string Verdict { get => _verdict; set => Set(ref _verdict, value); }
@@ -195,6 +197,13 @@ public sealed class CompareViewModel : Observable
         TitleBrush = PriceViewModel.RarityBrush(item.Rarity);
         var age = DateTime.UtcNow - build.LoadedAt;
         Subtitle = $"{build.Name} · L{build.Level} {build.ClassName} · gear loaded {(age.TotalMinutes < 1 ? "just now" : $"{age.TotalMinutes:0} min ago")}";
+        var sk = build.Skill;
+        DamageNote = sk is null
+            ? "No active skill gem found, so damage only counts generic \"increased Damage\"."
+            : $"Damage is scored for {sk.Describe()}{(sk.Auto ? ", detected from your links (change it in Settings)" : ", set in Settings")}. "
+              + (sk.IsRf ? "RF: life × increased × DoT multi." : sk.IsMinion ? "Minions: minion damage, speed and gem levels."
+                 : sk.IsDot ? "Increased × DoT multi × gem levels." : "Base × increased × speed × crit × gem levels.")
+              + " A relative estimate, not a PoB DPS number.";
         Error = null;
         Busy = false;
         Tabs.Clear();
@@ -203,7 +212,7 @@ public sealed class CompareViewModel : Observable
         Raise(nameof(ResultVisible));
         // Rings: start on the slot where the new item helps most.
         var best = comparisons.OrderByDescending(c => c.Overall == Sentiment.Bad ? -1 : (int)(c.Overall == Sentiment.Better ? 2 : c.Overall == Sentiment.Neutral ? 1 : 0))
-                              .ThenByDescending(c => c.After.Life + c.After.RfDamageIndex / 100).FirstOrDefault();
+                              .ThenByDescending(c => c.Score).FirstOrDefault();
         Select(Tabs.FirstOrDefault(t => t.Comparison == best));
     }
 

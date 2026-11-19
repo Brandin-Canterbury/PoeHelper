@@ -177,7 +177,8 @@ public sealed class AppHost : IDisposable, IMenuActions
         try
         {
             var b = await CharacterBuild.LoadAsync(_client, _settings.AccountName, _settings.CharacterName, AppSettings.CacheDir);
-            Log.Info($"Loaded character {b.Name} L{b.Level} {b.ClassName} ({b.Items.Count} items, {b.TreeStats.Count} tree lines)");
+            b.MainSkillOverride = _settings.MainSkill;
+            Log.Info($"Loaded character {b.Name} L{b.Level} {b.ClassName} ({b.Items.Count} items, {b.TreeStats.Count} tree lines); main skill {b.Skill?.Describe() ?? "(none)"}");
             return b;
         }
         catch (Exception ex) { Log.Error("Loading character failed", ex); throw; }

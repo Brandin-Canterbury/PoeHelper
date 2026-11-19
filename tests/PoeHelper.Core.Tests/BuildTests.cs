@@ -76,7 +76,7 @@ public class BuildTests
         var c = Assert.Single(GearCompare.Compare(Rf(), item));
         Assert.Equal(Sentiment.Bad, c.Overall);
         Assert.Contains(c.Warnings, w => w.Contains("wouldn't fit"));
-        Assert.Contains(c.Warnings, w => w.Contains("RF setup"));
+        Assert.Contains(c.Warnings, w => w.Contains("Righteous Fire setup"));
     }
 
     [Fact]

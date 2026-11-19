@@ -35,12 +35,20 @@ public sealed class BuildStats
     public double RfDegen { get; init; }
     public bool HasRf { get; init; }
     public double NetRegen => LifeRegen - RfDegen;
-    public double FireDotMulti { get; init; }
+    /// <summary>The DoT multiplier (DoT skills) or crit multiplier (hit skills) that applies to the main skill.</summary>
+    public double DamageMulti { get; init; }
     public double IncreasedDamage { get; init; }
-    /// <summary>Relative RF damage: base (% of life) × increased × DoT multi. Only meaningful as a ratio.</summary>
-    public double RfDamageIndex { get; init; }
+    /// <summary>
+    /// Relative damage of the main skill. RF: % of life × increased × DoT multi. Other skills: base × increased ×
+    /// (DoT multi or crit) × speed × gem levels. Only meaningful as a ratio between two gear sets.
+    /// </summary>
+    public double DamageIndex { get; init; }
+    public SkillProfile? Skill { get; init; }
+    public double Speed { get; init; }
+    public double CritChance { get; init; }
     public double MovementSpeed { get; init; }
-    public double GemLevelsFire { get; init; }
+    /// <summary>Gem levels that reach the main skill (socketed + global).</summary>
+    public double SkillGemLevels { get; init; }
     public StatTotals Totals { get; init; } = new();
 }
 
@@ -54,11 +62,17 @@ public static partial class BuildCalculator
 {
     public const int ResistPenalty = -60;
 
+    /// <summary>Weapon mods that only change the weapon's own numbers (already in its property block).</summary>
+    static bool IsLocalWeaponMod(string line) => LocalWeaponRx().IsMatch(Data.TradeData.Skeleton(line));
+
+    static bool IsWeapon(EquippedItem i) => i.Props.ContainsKey("Attacks per Second");
+
     public static BuildStats Compute(CharacterBuild b)
     {
         var lines = new List<string>(b.TreeStats);
         lines.AddRange(b.JewelMods);
-        foreach (var it in b.Items.Values) lines.AddRange(it.Mods);
+        foreach (var it in b.Items.Values)
+            lines.AddRange(IsWeapon(it) ? it.Mods.Where(m => !IsLocalWeaponMod(m)) : it.Mods);
         var gems = b.Items.Values.SelectMany(i => i.Gems).ToList();
         // Aura gems: "You and nearby allies gain +34% to all Elemental Resistances".
         foreach (var g in gems.Where(g => !g.Support))
@@ -94,22 +108,17 @@ public static partial class BuildCalculator
         double regen = (life * t.LifeRegenPct / 100 + t.LifeRegenFlat) * (1 + t.LifeRegenRate / 100);
 
         var rf = gems.FirstOrDefault(g => g.Name.Contains("Righteous Fire"));
-        double burnPct = 0, dmgPct = 0;
+        double burnPct = 0;
         if (rf is not null)
             foreach (var m in rf.Mods)
             {
                 var burn = RfBurn().Match(m);
                 if (burn.Success) burnPct = double.Parse(burn.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
-                var dmg = RfDamage().Match(m);
-                if (dmg.Success) dmgPct = double.Parse(dmg.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
             }
         double degen = life * burnPct / 100 * (1 - fire.Effective / 100);
 
-        // Everything that scales RF: it's a fire, burning, spell, elemental, area damage-over-time skill.
-        double inc = t.FireDamagePct + t.BurningDamagePct + t.SpellDamagePct + t.ElementalDamagePct + t.DamagePct
-                     + t.DamageOverTimePct + t.AreaDamagePct;
-        double multi = t.FireDotMulti + t.DotMulti;
-        double index = (dmgPct > 0 ? dmgPct : 70) / 100 * life * (1 + inc / 100) * (1 + multi / 100);
+        var skill = b.Skill;
+        var dmg = Damage(b, skill, t, life);
 
         return new BuildStats
         {
@@ -119,11 +128,136 @@ public static partial class BuildCalculator
             DexNeed = Need(dex, g => g.Dex, i => i.ReqDex),
             IntNeed = Need(intl, g => g.Int, i => i.ReqInt),
             LifeRegen = regen, RfDegen = degen, HasRf = rf is not null,
-            FireDotMulti = multi, IncreasedDamage = inc, RfDamageIndex = index,
-            MovementSpeed = t.MovementSpeed, GemLevelsFire = t.GemLevelsFire + t.GemLevelsAll,
+            DamageMulti = dmg.Multi, IncreasedDamage = dmg.Inc, DamageIndex = dmg.Index, Skill = skill,
+            Speed = dmg.Speed, CritChance = dmg.Crit, SkillGemLevels = dmg.Levels,
+            MovementSpeed = t.MovementSpeed,
             Totals = t,
         };
     }
+
+    /// <summary>Damage per gem level (rough: most gems gain ~8-12% damage a level in the late teens).</summary>
+    const double PerGemLevel = 0.10;
+
+    /// <summary>
+    /// Base damage assumed for a spell hit, from the gem's level, so flat "Adds # to # Damage to Spells" is weighed
+    /// against something sensible. Real spell base damage varies a lot between gems; this is a middle-of-the-road guess.
+    /// </summary>
+    static double SpellBase(int level) => 10 + 9 * Math.Max(1, level);
+
+    sealed record DamageResult(double Index, double Inc, double Multi, double Speed, double Crit, double Levels);
+
+    static DamageResult Damage(CharacterBuild b, SkillProfile? skill, StatTotals t, double life)
+    {
+        if (skill is null)
+            return new(1 + t.DamagePct / 100, t.DamagePct, 0, 1, 0, 0);
+
+        // Gem levels that reach the skill: socketed ones on its own item, plus global "+1 to all X gems".
+        double levels = 0;
+        if (b.Items.TryGetValue(skill.Slot, out var home) && home.Gems.Any(g => g.Name == skill.Name))
+            foreach (var m in home.Mods)
+            {
+                var sm = SocketedLevelRx().Match(Data.TradeData.Skeleton(m));
+                if (!sm.Success) continue;
+                var kind = sm.Groups[1].Value.Trim();
+                if (kind.Length == 0 || KindMatches(skill, kind)) levels += Items.ItemParser.FirstInt(m);
+            }
+        foreach (var (kind, lv) in t.GlobalGemLevels)
+            if (kind.Length == 0 || KindMatches(skill, kind)) levels += lv;
+        double levelFactor = 1 + PerGemLevel * levels;
+
+        if (skill.IsRf)
+        {
+            double dmgPct = 0;
+            foreach (var m in skill.Gem.Mods)
+            {
+                var d = RfDamage().Match(m);
+                if (d.Success) dmgPct = double.Parse(d.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
+            }
+            // Everything that scales RF: it's a fire, burning, spell, elemental, area damage-over-time skill.
+            double inc = t.FireDamagePct + t.BurningDamagePct + t.SpellDamagePct + t.ElementalDamagePct + t.DamagePct
+                         + t.DamageOverTimePct + t.AreaDamagePct;
+            double multi = t.FireDotMulti + t.DotMulti;
+            return new((dmgPct > 0 ? dmgPct : 70) / 100 * life * (1 + inc / 100) * (1 + multi / 100), inc, multi, 1, 0, levels);
+        }
+
+        var types = skill.Elements;
+        bool ele = types.Any(e => e is "Fire" or "Cold" or "Lightning");
+
+        if (skill.IsMinion)
+        {
+            double minc = t.MinionDamagePct;
+            double mspeed = 1 + t.MinionSpeedPct / 100;
+            return new((1 + minc / 100) * mspeed * levelFactor, minc, 0, mspeed, 0, levels);
+        }
+
+        // Increased damage that applies to this skill.
+        double incd = t.DamagePct + types.Sum(t.IncreasedFor) + (ele ? t.ElementalDamagePct : 0);
+        if (skill.IsSpell) incd += t.SpellDamagePct;
+        if (skill.IsAttack) incd += t.AttackDamagePct + (ele ? t.EleAttackDamagePct : 0);
+        if (skill.Has("Projectile")) incd += t.ProjectileDamagePct;
+        if (skill.Has("AoE")) incd += t.AreaDamagePct;
+
+        if (skill.IsDot)
+        {
+            incd += t.DamageOverTimePct + (types.Contains("Fire") ? t.BurningDamagePct : 0);
+            double dm = t.DotMulti + types.Select(t.DotMultiFor).DefaultIfEmpty(0).Max();
+            return new((1 + incd / 100) * (1 + dm / 100) * levelFactor, incd, dm, 1, 0, levels);
+        }
+
+        // Hits: base (weapon or spell) + flat added damage, × speed × crit.
+        double baseDmg, speed, baseCrit;
+        var weapon = b.Items.GetValueOrDefault("Weapon");
+        if (skill.IsAttack && weapon is not null && IsWeapon(weapon))
+        {
+            baseDmg = AvgRange(weapon.Props.GetValueOrDefault("Physical Damage"))
+                      + AvgRange(weapon.Props.GetValueOrDefault("Elemental Damage"))
+                      + AvgRange(weapon.Props.GetValueOrDefault("Chaos Damage"));
+            speed = Items.ItemParser.Numbers(weapon.Props.GetValueOrDefault("Attacks per Second") ?? "1").DefaultIfEmpty(1).First();
+            baseCrit = Items.ItemParser.Numbers(weapon.Props.GetValueOrDefault("Critical Strike Chance") ?? "5").DefaultIfEmpty(5).First();
+        }
+        else if (skill.IsAttack)
+        {
+            (baseDmg, speed, baseCrit) = (5, 1.2, 5); // unarmed
+        }
+        else
+        {
+            (baseDmg, speed, baseCrit) = (SpellBase(skill.Gem.Level), 1, 6);
+        }
+        baseDmg += types.Sum(type => t.AddedTo(skill.IsAttack, type));
+        double speedFactor = speed * (1 + (skill.IsAttack ? t.AttackSpeedPct : t.CastSpeedPct) / 100);
+        double crit = Math.Min(100, baseCrit * (1 + (t.CritChancePct + (skill.IsSpell ? t.SpellCritChancePct : 0)) / 100));
+        double critMulti = 50 + t.CritMulti + (skill.IsSpell ? t.SpellCritMulti : 0); // extra over a normal hit (base 150%)
+        double critFactor = 1 + crit / 100 * critMulti / 100;
+        return new(baseDmg * (1 + incd / 100) * speedFactor * critFactor * levelFactor, incd, critMulti + 100, speedFactor, crit, levels);
+    }
+
+    /// <summary>"Fire Spell" matches a fire spell; "Minion" a minion skill; "Spell" any spell; "Elemental" any element.</summary>
+    static bool KindMatches(SkillProfile s, string kind) =>
+        kind.Split(' ', StringSplitOptions.RemoveEmptyEntries).All(word => word switch
+        {
+            "Elemental" => s.Has("Fire") || s.Has("Cold") || s.Has("Lightning"),
+            _ => s.Has(word),
+        });
+
+    /// <summary>"50-76" → 63; "10-20, 5-60" → 47.5 (sum of averages).</summary>
+    static double AvgRange(string? v)
+    {
+        if (string.IsNullOrEmpty(v)) return 0;
+        double total = 0;
+        foreach (var part in v.Split(','))
+        {
+            var n = Items.ItemParser.Numbers(part.Replace('-', ' '));
+            if (n.Count >= 2) total += (n[0] + n[1]) / 2;
+            else if (n.Count == 1) total += n[0];
+        }
+        return total;
+    }
+
+    [GeneratedRegex(@"^(?:Adds # to # \w+ Damage|#% increased Physical Damage|#% increased Attack Speed|#% increased Critical Strike Chance|\+# to Accuracy Rating|#% increased Accuracy Rating)$")]
+    private static partial Regex LocalWeaponRx();
+
+    [GeneratedRegex(@"^\+# to Level of Socketed ((?:[A-Z][a-z]+ )*?)Gems$")]
+    private static partial Regex SocketedLevelRx();
 
     [GeneratedRegex(@"^You and nearby [Aa]llies (?:gain |have )?(.+)$")]
     private static partial Regex AuraPrefix();

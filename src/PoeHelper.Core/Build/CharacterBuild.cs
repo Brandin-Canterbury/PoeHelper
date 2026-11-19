@@ -5,7 +5,10 @@ using PoeHelper.Core.Trade;
 
 namespace PoeHelper.Core.Build;
 
-public sealed record GemInfo(string Name, int Level, int Str, int Dex, int Int, IReadOnlyList<string> Mods, bool Support);
+/// <param name="Tags">The gem's tag line, e.g. "Spell, AoE, Fire".</param>
+/// <param name="Group">The socket group (link group) it sits in on its item.</param>
+public sealed record GemInfo(string Name, int Level, int Str, int Dex, int Int, IReadOnlyList<string> Mods, bool Support,
+    IReadOnlyList<string>? Tags = null, int Group = 0);
 
 /// <summary>One equipped item, reduced to what the model needs.</summary>
 public sealed class EquippedItem
@@ -20,6 +23,8 @@ public sealed class EquippedItem
     public int SocketCount { get; init; }
     public int MaxLinks { get; init; }
     public List<GemInfo> Gems { get; init; } = [];
+    /// <summary>Property block as "name → value" (e.g. "Physical Damage" → "50-76", "Attacks per Second" → "1.25").</summary>
+    public Dictionary<string, string> Props { get; init; } = new(StringComparer.OrdinalIgnoreCase);
     /// <summary>The trade-site JSON for this item, kept for building upgrade searches.</summary>
     public JsonObject? Raw { get; init; }
 }
@@ -42,15 +47,38 @@ public sealed partial class CharacterBuild
     public List<string> JewelMods { get; init; } = [];
     public DateTime LoadedAt { get; init; } = DateTime.UtcNow;
 
+    string? _mainSkillOverride;
+    SkillProfile? _skill;
+    bool _skillDetected;
+
+    /// <summary>Gem name (or part of it) to treat as the main skill; blank = detect from the links.</summary>
+    public string? MainSkillOverride
+    {
+        get => _mainSkillOverride;
+        set { _mainSkillOverride = value; _skillDetected = false; }
+    }
+
+    /// <summary>The build's main skill, detected once from the character as loaded (swaps don't change it).</summary>
+    public SkillProfile? Skill
+    {
+        get
+        {
+            if (!_skillDetected) { _skill = MainSkill.Detect(this, _mainSkillOverride); _skillDetected = true; }
+            return _skill;
+        }
+    }
+
     public CharacterBuild WithItem(string slot, EquippedItem? item)
     {
         var items = new Dictionary<string, EquippedItem>(Items);
         if (item is null) items.Remove(slot); else items[slot] = item;
+        var skill = Skill;
         return new CharacterBuild
         {
             Name = Name, ClassName = ClassName, League = League, Level = Level,
             BaseStr = BaseStr, BaseDex = BaseDex, BaseInt = BaseInt,
             Items = items, TreeStats = TreeStats, JewelMods = JewelMods, LoadedAt = LoadedAt,
+            _mainSkillOverride = _mainSkillOverride, _skill = skill, _skillDetected = true,
         };
     }
 
@@ -117,15 +145,33 @@ public sealed partial class CharacterBuild
             var (gs, gd, gi) = Requirements(go);
             var level = go["properties"]?.AsArray().FirstOrDefault(p => p?["name"]?.GetValue<string>() == "Level")
                 ?["values"]?[0]?[0]?.GetValue<string>() ?? "0";
+            var tags = (go["properties"]?.AsArray().FirstOrDefault()?["name"]?.GetValue<string>() ?? "")
+                .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+            int socket = go["socket"]?.GetValue<int>() ?? -1;
+            int group = sockets is not null && socket >= 0 && socket < sockets.Count ? sockets[socket]?["group"]?.GetValue<int>() ?? 0 : 0;
             gems.Add(new GemInfo(go["typeLine"]?.GetValue<string>() ?? "?", ItemParser.FirstInt(level), gs, gd, gi,
-                ModLines(go), go["support"]?.GetValue<bool>() == true));
+                ModLines(go), go["support"]?.GetValue<bool>() == true, tags, group));
         }
         string name = it["name"]?.GetValue<string>() is { Length: > 0 } n ? $"{n} {it["typeLine"]}" : it["typeLine"]?.GetValue<string>() ?? "?";
         return new EquippedItem
         {
             Slot = slot, Name = StripMarkup(name), Mods = ModLines(it), ReqStr = str, ReqDex = dex, ReqInt = intl,
-            SocketCount = sockets?.Count ?? 0, MaxLinks = links, Gems = gems, Raw = it,
+            SocketCount = sockets?.Count ?? 0, MaxLinks = links, Gems = gems, Raw = it, Props = ApiProps(it),
         };
+    }
+
+    /// <summary>"Physical Damage" → "50-76"; "Elemental Damage" → "10-20, 5-60" (all values joined).</summary>
+    static Dictionary<string, string> ApiProps(JsonObject it)
+    {
+        var d = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var p in it["properties"]?.AsArray() ?? [])
+        {
+            var name = p?["name"]?.GetValue<string>();
+            var values = p?["values"]?.AsArray();
+            if (string.IsNullOrEmpty(name) || values is not { Count: > 0 }) continue;
+            d[StripMarkup(name)] = string.Join(", ", values.Select(v => v?[0]?.GetValue<string>() ?? ""));
+        }
+        return d;
     }
 
     /// <summary>Implicit, explicit, crafted, enchant, fractured mods as plain lines (the API sends strings or {description}).</summary>

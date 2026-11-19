@@ -59,6 +59,35 @@ public static class UpgradeFinder
         ("#% increased Damage over Time", "1% increased Damage over Time", 1, false, 30),
         ("#% increased Area Damage", "1% increased Area Damage", 1, false, 20),
         ("pseudo.pseudo_total_strength", "+10 to Strength", 10, true, 45),
+        ("#% increased Cold Damage", "1% increased Cold Damage", 1, false, 35),
+        ("#% increased Lightning Damage", "1% increased Lightning Damage", 1, false, 35),
+        ("#% increased Global Physical Damage", "1% increased Global Physical Damage", 1, false, 30),
+        ("#% increased Chaos Damage", "1% increased Chaos Damage", 1, false, 30),
+        ("#% increased Attack Damage", "1% increased Attack Damage", 1, false, 25),
+        ("#% increased Projectile Damage", "1% increased Projectile Damage", 1, false, 20),
+        ("#% increased Elemental Damage with Attack Skills", "1% increased Elemental Damage with Attack Skills", 1, false, 35),
+        ("Minions deal #% increased Damage", "Minions deal 1% increased Damage", 1, false, 30),
+        ("#% increased Attack Speed", "1% increased Attack Speed", 1, false, 12),
+        ("#% increased Cast Speed", "1% increased Cast Speed", 1, false, 15),
+        ("Minions have #% increased Attack and Cast Speed", "Minions have 1% increased Attack and Cast Speed", 1, false, 10),
+        ("#% increased Global Critical Strike Chance", "1% increased Global Critical Strike Chance", 1, false, 30),
+        ("+#% to Global Critical Strike Multiplier", "+1% to Global Critical Strike Multiplier", 1, false, 30),
+        ("+#% to Cold Damage over Time Multiplier", "+1% to Cold Damage over Time Multiplier", 1, false, 25),
+        ("+#% to Chaos Damage over Time Multiplier", "+1% to Chaos Damage over Time Multiplier", 1, false, 25),
+        ("+#% to Physical Damage over Time Multiplier", "+1% to Physical Damage over Time Multiplier", 1, false, 25),
+        ("Adds # to # Physical Damage to Attacks", "Adds 5 to 15 Physical Damage to Attacks", 10, false, 12),
+        ("Adds # to # Fire Damage to Attacks", "Adds 5 to 15 Fire Damage to Attacks", 10, false, 25),
+        ("Adds # to # Cold Damage to Attacks", "Adds 5 to 15 Cold Damage to Attacks", 10, false, 22),
+        ("Adds # to # Lightning Damage to Attacks", "Adds 5 to 15 Lightning Damage to Attacks", 10, false, 35),
+        ("Adds # to # Fire Damage to Spells", "Adds 5 to 15 Fire Damage to Spells", 10, false, 30),
+        ("Adds # to # Cold Damage to Spells", "Adds 5 to 15 Cold Damage to Spells", 10, false, 28),
+        ("Adds # to # Lightning Damage to Spells", "Adds 5 to 15 Lightning Damage to Spells", 10, false, 40),
+        ("+# to Level of all Minion Skill Gems", "+1 to Level of all Minion Skill Gems", 1, false, 1),
+        ("+# to Level of all Fire Spell Skill Gems", "+1 to Level of all Fire Spell Skill Gems", 1, false, 1),
+        ("+# to Level of all Cold Spell Skill Gems", "+1 to Level of all Cold Spell Skill Gems", 1, false, 1),
+        ("+# to Level of all Lightning Spell Skill Gems", "+1 to Level of all Lightning Spell Skill Gems", 1, false, 1),
+        ("+# to Level of all Chaos Spell Skill Gems", "+1 to Level of all Chaos Spell Skill Gems", 1, false, 1),
+        ("+# to Level of all Physical Spell Skill Gems", "+1 to Level of all Physical Spell Skill Gems", 1, false, 1),
     ];
 
 
@@ -288,7 +317,7 @@ public static class UpgradeFinder
         // Best first; ties go to the cheaper listing.
         double Key(UpgradeCandidate u) => plan.Priority == UpgradePriority.Life
             ? u.Compare.After.Life - u.Compare.Before.Life
-            : u.Compare.Before.RfDamageIndex > 0 ? u.Compare.After.RfDamageIndex / u.Compare.Before.RfDamageIndex : 0;
+            : GearCompare.DamageChangePct(u.Compare.Before, u.Compare.After);
         result.Candidates.Sort((x, y) =>
         {
             int c = Key(y).CompareTo(Key(x));
@@ -318,7 +347,7 @@ public static class UpgradeFinder
 
     /// <summary>The score GearCompare ranks by: life % change + damage % change.</summary>
     static double Score(BuildStats b, BuildStats a) =>
-        (b.Life > 0 ? (a.Life / b.Life - 1) * 100 : 0) + (b.RfDamageIndex > 0 ? (a.RfDamageIndex / b.RfDamageIndex - 1) * 100 : 0);
+        (b.Life > 0 ? (a.Life / b.Life - 1) * 100 : 0) + GearCompare.DamageChangePct(b, a);
 
     static double WeightedValue(IEnumerable<string> mods, IEnumerable<StatWeight> weights)
     {
@@ -330,22 +359,24 @@ public static class UpgradeFinder
             {
                 "pseudo.pseudo_total_life" => t.Life,
                 "pseudo.pseudo_total_strength" => t.Str,
-                _ => w.Label switch
-                {
-                    "#% increased maximum Life" => t.LifePct,
-                    "+#% to Fire Damage over Time Multiplier" => t.FireDotMulti,
-                    "+#% to Damage over Time Multiplier" => t.DotMulti,
-                    "#% increased Fire Damage" => t.FireDamagePct,
-                    "#% increased Burning Damage" => t.BurningDamagePct,
-                    "#% increased Spell Damage" => t.SpellDamagePct,
-                    "#% increased Elemental Damage" => t.ElementalDamagePct,
-                    "#% increased Damage over Time" => t.DamageOverTimePct,
-                    "#% increased Area Damage" => t.AreaDamagePct,
-                    _ => 0,
-                },
+                _ => mods.Sum(m => ModValue(m, w.Label)),
             };
             total += v * w.Weight;
         }
         return total;
+    }
+
+    /// <summary>
+    /// The mod's value if its text is <paramref name="skeleton"/> (the trade site's convention: the average for
+    /// "Adds # to #", negative for "-#"), else 0.
+    /// </summary>
+    static double ModValue(string mod, string skeleton)
+    {
+        var sk = TradeData.Skeleton(mod);
+        var n = Items.ItemParser.Numbers(mod);
+        if (n.Count == 0) return 0;
+        if (sk.StartsWith("-#")) sk = "+#" + sk[2..];
+        if (sk != skeleton) return 0;
+        return sk.StartsWith("Adds # to #") && n.Count >= 2 ? (n[0] + n[1]) / 2 : n[0];
     }
 }

@@ -21,7 +21,8 @@ if (args.Length == 3 && args[0] == "build")
     foreach (var (n, a2) in new[] { ("Str", st.StrNeed), ("Dex", st.DexNeed), ("Int", st.IntNeed) })
         Console.WriteLine($"  {n} {a2.Have} vs need {a2.Need} ({a2.NeededBy}) {(a2.Met ? "ok" : "NOT MET")}");
     Console.WriteLine($"Regen {st.LifeRegen:0.0}/s  RF degen {st.RfDegen:0.0}/s  net {st.NetRegen:0.0}/s");
-    Console.WriteLine($"Inc dmg {st.IncreasedDamage}%  DoT multi {st.FireDotMulti}%  RF index {st.RfDamageIndex:0}");
+    Console.WriteLine($"Main skill {st.Skill?.Describe() ?? "(none)"}{(st.Skill is { Auto: false } ? " [override]" : "")}, linked supports {st.Skill?.LinkedSupports}");
+    Console.WriteLine($"Inc dmg {st.IncreasedDamage}%  multi {st.DamageMulti}%  speed {st.Speed:0.00}  crit {st.CritChance:0.#}%  gem levels +{st.SkillGemLevels}  dmg index {st.DamageIndex:0.##}");
     foreach (var it in build.Items.Values) Console.WriteLine($"  [{it.Slot}] {it.Name}  sockets {it.SocketCount} links {it.MaxLinks} gems {it.Gems.Count}");
     return 0;
 }

@@ -12,13 +12,18 @@
                    Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,2,0,6" />
         <Grid>
             <Grid.ColumnDefinitions><ColumnDefinition Width="150" /><ColumnDefinition /></Grid.ColumnDefinitions>
-            <Grid.RowDefinitions><RowDefinition /><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
+            <Grid.RowDefinitions><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /><RowDefinition /></Grid.RowDefinitions>
             <TextBlock Text="Account name" VerticalAlignment="Center" />
             <TextBox x:Name="Account" Grid.Column="1" Margin="0,2" />
             <TextBlock Grid.Row="1" Text="Character name" VerticalAlignment="Center" />
             <TextBox x:Name="Character" Grid.Row="1" Grid.Column="1" Margin="0,2" />
             <TextBlock Grid.Row="2" Text="League" VerticalAlignment="Center" />
             <ComboBox x:Name="League" Grid.Row="2" Grid.Column="1" Margin="0,2" IsEditable="True" />
+            <TextBlock Grid.Row="3" Text="Main skill" VerticalAlignment="Center" />
+            <TextBox x:Name="MainSkill" Grid.Row="3" Grid.Column="1" Margin="0,2"
+                     ToolTip="Leave blank to use the skill with the most supports linked. Type a gem name (e.g. Fire Trap) to pick another." />
+            <TextBlock Grid.Row="4" Grid.Column="1" Text="Blank = the skill with the most linked supports. Damage numbers are scored for this skill."
+                       Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" />
         </Grid>
 
         <TextBlock Text="Price check" FontWeight="SemiBold" Foreground="{StaticResource Gold}" Margin="0,14,0,4" />

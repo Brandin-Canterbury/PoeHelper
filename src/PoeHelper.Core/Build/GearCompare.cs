@@ -82,6 +82,7 @@ public static class GearCompare
             Slot = slot, Name = candidate.Name, ItemClass = candidate.ItemClass, Mods = candidate.Mods,
             ReqStr = candidate.ReqStr, ReqDex = candidate.ReqDex, ReqInt = candidate.ReqInt,
             SocketCount = candidate.SocketCount, MaxLinks = candidate.MaxLinks, Gems = gems.Take(fit).ToList(), Raw = candidate.Raw,
+            Props = candidate.Props,
         };
         var swapped = build.WithItem(slot, moved);
         if (twoHanded && slot == "Weapon" && build.Items.ContainsKey("Offhand"))
@@ -103,6 +104,7 @@ public static class GearCompare
             Slot = slot, Name = item.DisplayName, ItemClass = item.ItemClass, Mods = mods,
             ReqStr = item.Requirements.Str, ReqDex = item.Requirements.Dex, ReqInt = item.Requirements.Int,
             SocketCount = item.SocketCount, MaxLinks = item.MaxLinks, Gems = gems.Take(fit).ToList(),
+            Props = new Dictionary<string, string>(item.Properties, StringComparer.OrdinalIgnoreCase),
         };
         return (eq, gems.Skip(fit).ToList());
     }
@@ -150,14 +152,25 @@ public static class GearCompare
                 c.Warnings.Add($"Righteous Fire would out-burn your regen ({a.NetRegen:0}/s).");
         }
 
-        double dmgChange = b.RfDamageIndex > 0 ? (a.RfDamageIndex / b.RfDamageIndex - 1) * 100 : 0;
-        c.Rows.Add(new CompareRow(b.HasRf ? "RF damage (approx.)" : "DoT damage (approx.)", "", "",
+        double dmgChange = DamageChangePct(b, a);
+        var skill = b.Skill;
+        c.Rows.Add(new CompareRow(skill is null ? "Damage" : $"{skill.Name} damage", "", "",
             Math.Abs(dmgChange) < 0.05 ? "" : $"{dmgChange:+0.0;-0.0}%",
             dmgChange > 0.05 ? Sentiment.Better : dmgChange < -0.05 ? Sentiment.Worse : Sentiment.Neutral));
-        AddIfChanged(c, "DoT multiplier", b.FireDotMulti, a.FireDotMulti, "%");
-        AddIfChanged(c, "Increased damage", b.IncreasedDamage, a.IncreasedDamage, "%");
+        bool dot = skill is null || skill.IsDot || skill.IsRf;
+        if (skill is not { IsMinion: true })
+            AddIfChanged(c, dot ? "DoT multiplier" : "Crit multiplier", b.DamageMulti, a.DamageMulti, "%");
+        AddIfChanged(c, skill is { IsMinion: true } ? "Minion damage" : "Increased damage", b.IncreasedDamage, a.IncreasedDamage, "%");
+        if (skill is { IsDot: false, IsRf: false })
+        {
+            AddIfChanged(c, "Crit chance", b.CritChance, a.CritChance, "%");
+            if (Math.Abs(a.Speed - b.Speed) > 0.005)
+                c.Rows.Add(new CompareRow(skill.IsMinion ? "Minion speed" : skill.IsAttack ? "Attacks /s" : "Cast speed (rel.)",
+                    b.Speed.ToString("0.00", CultureInfo.InvariantCulture), a.Speed.ToString("0.00", CultureInfo.InvariantCulture),
+                    $"{(a.Speed / b.Speed - 1) * 100:+0.#;-0.#}%", a.Speed > b.Speed ? Sentiment.Better : Sentiment.Worse));
+        }
         AddIfChanged(c, "Movement speed", b.MovementSpeed, a.MovementSpeed, "%");
-        AddIfChanged(c, "+Fire gem levels", b.GemLevelsFire, a.GemLevelsFire, "");
+        AddIfChanged(c, "+Skill gem levels", b.SkillGemLevels, a.SkillGemLevels, "");
 
         // Sockets and links: losing the RF 6-link is the worst outcome.
         if (current is { Gems.Count: > 0 })
@@ -166,7 +179,7 @@ public static class GearCompare
                 c.Warnings.Add($"Only {candidate.SocketCount} socket(s): {string.Join(", ", lost.Select(g => g.Name))} wouldn't fit.");
             if (candidate.MaxLinks < current.MaxLinks && current.MaxLinks >= 3)
                 c.Warnings.Add($"Links drop from {current.MaxLinks}L to {candidate.MaxLinks}L"
-                               + (current.Gems.Any(g => g.Name.Contains("Righteous Fire")) ? ": your RF setup is in this slot." : "."));
+                               + (b.Skill is { } sk && current.Gems.Any(g => g.Name == sk.Name) ? $": your {sk.Name} setup is in this slot." : "."));
         }
         if (twoHanded && build.Items.ContainsKey("Offhand"))
             c.Warnings.Add("Two-handed: your off-hand would be unequipped (included above).");
@@ -222,6 +235,10 @@ public static class GearCompare
             var l => $"{l.Split(' ')[0]} requirement not met.",
         };
     }
+
+    /// <summary>Main-skill damage change in %, from the relative damage index.</summary>
+    public static double DamageChangePct(BuildStats b, BuildStats a) =>
+        b.DamageIndex > 0 ? (a.DamageIndex / b.DamageIndex - 1) * 100 : 0;
 
     static CompareRow Num(string label, double before, double after, bool higherIsBetter)
     {
