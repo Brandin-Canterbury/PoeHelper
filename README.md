@@ -184,3 +184,7 @@ Gem data (base damage, levels, support multipliers) is imported from [Path of Bu
 ```
 python -I tools/pob-import/import_pob.py <PathOfBuilding checkout> src/PoeHelper.Core/Data/skills.json
 ```
+
+## Licence
+
+PoeHelper is MIT licensed: see [LICENSE](LICENSE). Bundled third-party data keeps its own licence: see [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md).
