@@ -144,6 +144,17 @@ Settings → **Log in with your session cookie**: paste your `POESESSID`, press 
 | Wrong or odd search | Tray → **Open log**. Every checked item's text is logged; attach it to an issue. |
 | Stale stats after a patch | Tray → **Refresh trade data**. |
 
+## Releases
+
+GitHub Actions (`.github/workflows/build.yml`) builds and tests every push to `main`. To release, push a version tag, or run the workflow from the Actions tab with a version:
+
+```
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+It builds the self-contained `PoeHelper.exe` and creates a GitHub Release with the exe, a zip with the README, and SHA-256 checksums. Versions with a suffix (`v1.2.0-beta.1`) are marked pre-release.
+
 ## Development
 
 ```

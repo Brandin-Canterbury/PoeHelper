@@ -1,0 +1,100 @@
+name: Build and release
+
+# - Every push to main and every pull request: build and run the tests.
+# - A pushed tag like v1.2.3, or "Run workflow" with a version: also publish the self-contained
+#   PoeHelper.exe and create a GitHub Release with it.
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release, e.g. 1.2.0 (tagged v1.2.0 on the selected branch)'
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  build:
+    runs-on: windows-latest
+    env:
+      DOTNET_NOLOGO: true
+      DOTNET_CLI_TELEMETRY_OPTOUT: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Work out the version
+        id: version
+        shell: pwsh
+        run: |
+          $release = $false
+          $version = '0.0.0-ci.${{ github.run_number }}'
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $version = '${{ inputs.version }}'.TrimStart('v'); $release = $true
+          } elseif ('${{ github.ref_type }}' -eq 'tag') {
+            $version = '${{ github.ref_name }}'.TrimStart('v'); $release = $true
+          }
+          if ($release -and $version -notmatch '^\d+\.\d+\.\d+([-.][0-9A-Za-z.-]+)?$') {
+            throw "Version '$version' isn't like 1.2.3"
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          "release=$($release.ToString().ToLower())" >> $env:GITHUB_OUTPUT
+          Write-Host "Version $version, release: $release"
+
+      - name: Restore
+        run: dotnet restore PoeHelper.slnx
+
+      - name: Build
+        run: dotnet build PoeHelper.slnx -c Release --no-restore -p:Version=${{ steps.version.outputs.version }}
+
+      - name: Test
+        run: dotnet test tests/PoeHelper.Core.Tests -c Release --no-build --logger "trx;LogFileName=results.trx"
+
+      - name: Publish PoeHelper.exe
+        if: steps.version.outputs.release == 'true'
+        run: >
+          dotnet publish src/PoeHelper.App/PoeHelper.App.csproj -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:Version=${{ steps.version.outputs.version }} -o publish
+
+      - name: Package
+        if: steps.version.outputs.release == 'true'
+        shell: pwsh
+        run: |
+          $v = '${{ steps.version.outputs.version }}'
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item publish/PoeHelper.exe dist/PoeHelper.exe
+          Compress-Archive -Path publish/PoeHelper.exe, README.md -DestinationPath "dist/PoeHelper-$v-win-x64.zip"
+          Get-FileHash dist/* -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $(Split-Path $_.Path -Leaf)" } |
+            Set-Content dist/SHA256SUMS.txt -Encoding ascii
+          Get-Content dist/SHA256SUMS.txt
+
+      - name: Create the release
+        if: steps.version.outputs.release == 'true'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = 'v${{ steps.version.outputs.version }}'
+          $ghArgs = @($tag) + (Get-ChildItem dist/*).FullName + @('--target', '${{ github.sha }}', '--title', "PoeHelper $tag", '--generate-notes')
+          if ('${{ steps.version.outputs.version }}' -match '-') { $ghArgs += '--prerelease' }
+          gh release create @ghArgs
+
+      - name: Keep the build
+        if: steps.version.outputs.release == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: PoeHelper-${{ steps.version.outputs.version }}
+          path: dist/
