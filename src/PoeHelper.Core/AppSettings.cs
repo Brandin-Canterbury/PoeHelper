@@ -14,8 +14,12 @@ public sealed class AppSettings
     public string PriceCheckStatus { get; set; } = "securable";
     public string PriceCheckHotkey { get; set; } = "Ctrl+D";
     public string CompareHotkey { get; set; } = "Alt+D";
-    /// <summary>Gem name (or part of it) of the build's main skill; blank = detect it from the links.</summary>
+    /// <summary>Gem name (or part of it) of the skill whose damage upgrades are scored for; blank = detect it from the links.</summary>
     public string MainSkill { get; set; } = "";
+    /// <summary>Upgrade tracker: keys of the stats Find upgrade looks for (after resists). See TrackedStats.All.</summary>
+    public List<string> TrackedStats { get; set; } = [.. Build.TrackedStats.Default];
+    /// <summary>Find upgrade also counts chaos resistance as a resist to keep or raise.</summary>
+    public bool UpgradeIncludeChaos { get; set; }
     /// <summary>Ctrl+Alt+C gives mod tiers, which picks better stats. Turn off if it misbehaves.</summary>
     public bool UseAdvancedCopy { get; set; } = true;
     /// <summary>

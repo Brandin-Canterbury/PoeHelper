@@ -2,21 +2,40 @@ using System.Windows;
 using System.Windows.Controls;
 using PoeHelper.App.Native;
 using PoeHelper.Core;
+using PoeHelper.Core.Build;
 using PoeHelper.Core.Trade;
 
 namespace PoeHelper.App;
 
 public partial class SettingsWindow : Window
 {
-    readonly AppSettings _settings;
+    /// <summary>One tickable stat in the upgrade tracker.</summary>
+    public sealed class TrackedChoice(string key, string label, bool ticked)
+    {
+        public string Key => key;
+        public string Label => label;
+        public bool Ticked { get; set; } = ticked;
+    }
 
-    public SettingsWindow(AppSettings settings, IEnumerable<string> leagues)
+    const string AutoSkill = "Auto (most linked supports)";
+    readonly AppSettings _settings;
+    readonly List<TrackedChoice> _tracked;
+
+    public SettingsWindow(AppSettings settings, IEnumerable<string> leagues, IReadOnlyList<string>? skills = null, string? detectedSkill = null)
     {
         InitializeComponent();
         _settings = settings;
         Account.Text = settings.AccountName;
         Character.Text = settings.CharacterName;
-        MainSkill.Text = settings.MainSkill;
+        SkillPick.Items.Add(AutoSkill);
+        foreach (var s in skills ?? []) SkillPick.Items.Add(s);
+        SkillPick.Text = string.IsNullOrWhiteSpace(settings.MainSkill) ? AutoSkill : settings.MainSkill;
+        SkillHint.Text = skills is { Count: > 0 }
+            ? $"Auto picks {detectedSkill ?? "nothing"} on this character."
+            : "Your gems appear here once your character has loaded. You can also type a gem name.";
+        var on = TrackedStats.Resolve(settings.TrackedStats).Select(t => t.Key).ToHashSet();
+        _tracked = TrackedStats.All.Select(t => new TrackedChoice(t.Key, t.Label, on.Contains(t.Key))).ToList();
+        Tracked.ItemsSource = _tracked;
         foreach (var l in leagues) League.Items.Add(l);
         League.Text = settings.League;
         PriceHotkey.Text = settings.PriceCheckHotkey;
@@ -84,9 +103,17 @@ public partial class SettingsWindow : Window
             ErrorText.Text = "The session cookie should be 32 letters and digits (0-9, a-f). Clear it or paste the POESESSID value again.";
             return;
         }
+        var tracked = _tracked.Where(t => t.Ticked).Select(t => t.Key).ToList();
+        if (tracked.Count == 0)
+        {
+            ErrorText.Text = "Tick at least one stat in the upgrade tracker.";
+            return;
+        }
         _settings.AccountName = account;
         _settings.CharacterName = Character.Text.Trim();
-        _settings.MainSkill = MainSkill.Text.Trim();
+        var skill = SkillPick.Text.Trim();
+        _settings.MainSkill = skill == AutoSkill ? "" : skill;
+        _settings.TrackedStats = tracked;
         _settings.League = string.IsNullOrWhiteSpace(League.Text) ? "Covens" : League.Text.Trim();
         _settings.PriceCheckHotkey = PriceHotkey.Text.Trim();
         _settings.CompareHotkey = CompareHotkey.Text.Trim();

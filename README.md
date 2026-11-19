@@ -5,7 +5,7 @@ A small Windows overlay for **Path of Exile 1** (league: Covens, 3.30). Hover an
 | Hotkey | Feature | Status |
 |---|---|---|
 | **Ctrl+D** | **Price check**: finds similar listings, then gives a recommended price with reasons | ✅ working |
-| **Alt+D** | **Gear compare**: what changes if this item replaced yours (life, resists vs cap, attributes vs gem requirements, your main skill's damage, RF sustain) | ✅ working |
+| **Alt+D** | **Gear compare**: what changes if this item replaced yours (life, resists vs cap, attributes vs gem requirements, your selected skill's damage, energy shield) | ✅ working |
 | button on compare | **Find upgrade**: Instant Buyout search for a better item within your budget, keeping resists capped and gem requirements met | ✅ working |
 
 An always-on **☰ button** (right edge of the screen) opens the menu: Settings, Reload character, Refresh trade data, Open log, Reset button position, Quit. **Alt+drag** moves it.
@@ -46,6 +46,8 @@ Copy the `publish` folder (it only needs `PoeHelper.exe`) and run it. Each playe
 | Character name | The character to compare against. |
 | League | Defaults to `Covens`. |
 | Listings | **Instant Buyout only** (default), Instant Buyout + in person, or any online seller. |
+| Skill to upgrade | A dropdown of your character's active gems; whose damage counts as "damage". **Auto** picks the gem with the most linked supports. |
+| Upgrade tracker | Tick the stats Find upgrade looks for after resists: skill damage, life, energy shield, mana, regen, movement speed, attributes, attack/cast speed, crit, spell damage, DoT multiplier, minion damage, gem levels. Default: life and skill damage. |
 | Advanced copy | Uses Ctrl+Alt+C so mod tiers are known. Rares then search on their best (T1–T2) mods, not every line. |
 | Contact | Optional email or forum name added to the User-Agent, as GGG asks of tool authors. |
 
@@ -57,46 +59,47 @@ Hover any weapon, armour piece, ring, amulet or belt and press **Alt+D**. The pa
 - **Life**: from your level, gear, tree (including anoints and masteries), jewels and Strength.
 - **Resists**: after the −60 act penalty and aura gems like Purity of Elements, and including the tree's "fire resistance also applies to cold and lightning" conversion. They're compared against your real caps, with any over-cap shown as a buffer.
 - **Attributes**: compared with the highest requirement among your socketed gems and gear.
-- **Main skill damage**: a relative estimate for your main skill, not a PoB DPS number (see below).
-- **RF net regen** (Righteous Fire builds): your life regen minus RF's burn after fire resistance.
+- **Energy shield**: armour pieces' ES plus global flat ES, × global increases and Intelligence.
+- **Skill damage**: a relative estimate for the selected skill, not a PoB DPS number (see below).
 
 ### Main skill and damage
 
-The main skill is the active gem with the most supports linked to it. Auras, heralds, curses, marks, warcries, guards, golems, banners and blink/travel skills are skipped. If it picks the wrong one, type the gem name in **Settings → Main skill**. The compare panel always says which skill it scored and how.
+Pick the skill in **Settings → Skill to upgrade**. On **Auto** it's the active gem with the most supports linked to it, skipping auras, heralds, curses, marks, warcries, guards, golems, banners and blink/travel skills. The compare panel always says which skill it scored and how.
 
 Only the stats that apply to that skill's tags count. A cold spell ignores "increased Physical Damage", for example:
 
 | Skill | Damage index |
 |---|---|
-| **Righteous Fire** | % of life × increased × DoT multiplier |
 | **Damage over time** (base damage per second, or linked to Swift Affliction, Burning Damage, Deadly/Unbound Ailments, Decay or Cruelty) | increased × the matching DoT multiplier × gem levels |
 | **Attacks** | weapon damage (from its property block, so local mods aren't counted twice) + flat added damage, × increased × attack speed × crit × gem levels |
 | **Spells** | an assumed base for the gem's level + flat added damage, × increased × cast speed × crit × gem levels |
 | **Minions** | minion damage × minion speed × gem levels |
 
-Gem levels count +10% each: socketed ones on the skill's own item, and global ones like "+1 to Level of all Minion Skill Gems". Find upgrade's weights come from the same model, so a minion build is shown minion stats, a bow build attack stats, and so on.
+Gem levels count +10% each: socketed ones on the skill's own item, and global ones like "+1 to Level of all Minion Skill Gems". When "skill damage" is tracked, Find upgrade's damage weights come from the same model, so a minion build is shown minion stats, a bow build attack stats, and so on. Nothing is specific to one skill.
 
 The verdict is one line: Upgrade, Downgrade, Sidegrade or **Don't swap**. "Don't swap" means the item breaks something:
 - your main skill's links, or gem sockets;
 - an elemental resist falling under cap;
-- an attribute requirement no longer met;
-- RF out-burning your regen.
+- an attribute requirement no longer met.
 
 Rings show a tab for each ring slot.
 
-What's **not** modelled: conditional mods ("while on Low Life", flasks, charges), damage conversion, more multipliers from support gems, ailments from hits, local armour defences, and full PoB damage. Gear is fetched from your public profile when the app starts. After changing gear, click **Reload character**.
+What's **not** modelled: conditional mods ("while on Low Life", flasks, charges), skills whose damage scales with life or self-damage from skills, damage conversion, more multipliers from support gems, ailments from hits, local armour defences, and full PoB damage. Gear is fetched from your public profile when the app starts. After changing gear, click **Reload character**.
 
 ## Find upgrade (button on the compare panel)
 
-Set a budget (div or c) and a priority (Life or Damage), then click **Find upgrade**:
-1. **Required.** It works out what the slot must keep providing: the resists that would fall under cap without it, the attributes your gems need, and the same socket count and links if gems sit in it.
-2. **Searched.** It searches **Instant Buyout only** within your budget, for items at least as good as yours on the chosen stat, sorted best-first.
-3. **Checked.** Every result is re-checked against your full build. Anything that would break resists, sockets or requirements is dropped, and the rest are ranked by life + damage.
+Set a budget (div or c), tick **Include chaos res** if chaos resistance should count, then click **Find upgrade**:
+1. **Required.** It works out what the slot must keep providing: the resists that would fall under cap without it (chaos too, when ticked and capped), the attributes your gems need, and the same socket count and links if gems sit in it.
+2. **Searched.** It searches **Instant Buyout only** within your budget for your tracked stats (Settings → Upgrade tracker), sorted best-first.
+3. **Checked.** Every result is re-checked against your full build. Anything that breaks resists, sockets or requirements is dropped, and so is anything that gains nothing you track.
+4. **Ranked.** Resists come first: the fewer points under cap, the higher the item. Then come the tracked stats, each counted in "good rolls" (about 70 life, 10% skill damage, 25% movement speed…) so different stats add up fairly. An item that fixes a resist may cost at most one good roll of your tracked stats.
+
+Resists that stay capped aren't shown. A resist row appears only when the item would leave it under cap, and chaos only when **Include chaos res** is ticked. Click a result to see every change it makes and every mod you'd give up.
 
 **Open on trade site** opens the search so you can buy.
 
-**Logged in** (see below): the search uses one weighted stat group, with life plus your build's best damage stats and weights from your build. It's sorted by weighted value, with your current item's value as the floor.
-**Anonymous:** GGG refuses weighted groups ("Query is too complex"), so the search sorts on one stat and the ranking happens locally. If a weighted search is refused, for example because the session expired, it falls back to this automatically.
+**Logged in** (see below): the search uses one weighted stat group made of your tracked stats (chaos res first when it counts and isn't capped). It's sorted by weighted value, with your current item's value as the floor.
+**Anonymous:** GGG refuses weighted groups ("Query is too complex"), so the search sorts on one stat, keeps the stat your current item gives most at least as high, and ranks locally. If a weighted search is refused, for example because the session expired, it falls back to this automatically.
 
 ## Logging in with your session cookie (optional)
 

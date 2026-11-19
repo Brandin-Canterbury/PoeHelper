@@ -5,7 +5,7 @@ using PoeHelper.Core.Items;
 namespace PoeHelper.Core.Stats;
 
 /// <summary>
-/// The handful of stats the helper models: life, resists, attributes, ES/mana and key RF damage stats.
+/// The handful of stats the helper models: life, resists, attributes, ES/mana and the damage stats the main-skill model uses.
 /// Summed from mod text, so it works the same for clipboard items and character-API items.
 /// </summary>
 public sealed partial class StatTotals

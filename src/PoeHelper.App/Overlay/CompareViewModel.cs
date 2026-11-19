@@ -61,15 +61,14 @@ public sealed class CompareViewModel : Observable
     // ---- find upgrade
     string _budget = "1";
     bool _budgetInDivines = true;
-    bool _prioritiseLife = true;
+    bool _includeChaos;
     bool _upgradeBusy;
     string _upgradeStatus = "";
     string? _upgradeUrl;
     public string Budget { get => _budget; set => Set(ref _budget, value); }
     public bool BudgetInDivines { get => _budgetInDivines; set { Set(ref _budgetInDivines, value); Raise(nameof(BudgetInChaos)); } }
     public bool BudgetInChaos { get => !_budgetInDivines; set => BudgetInDivines = !value; }
-    public bool PrioritiseLife { get => _prioritiseLife; set { Set(ref _prioritiseLife, value); Raise(nameof(PrioritiseDamage)); } }
-    public bool PrioritiseDamage { get => !_prioritiseLife; set => PrioritiseLife = !value; }
+    public bool IncludeChaos { get => _includeChaos; set => Set(ref _includeChaos, value); }
     public bool UpgradeBusy { get => _upgradeBusy; set => Set(ref _upgradeBusy, value); }
     public string UpgradeStatus { get => _upgradeStatus; set { Set(ref _upgradeStatus, value); Raise(nameof(HasUpgradeStatus)); } }
     public bool HasUpgradeStatus => UpgradeStatus.Length > 0;
@@ -96,20 +95,13 @@ public sealed class CompareViewModel : Observable
         foreach (var c in r.Candidates.Take(10))
         {
             var cmp = c.Compare;
-            var parts = new List<string>();
-            double life = cmp.After.Life - cmp.Before.Life;
-            double dmg = GearCompare.DamageChangePct(cmp.Before, cmp.After);
-            if (Math.Abs(life) >= 1) parts.Add($"{life:+0;-0} life");
-            if (Math.Abs(dmg) >= 0.1) parts.Add($"{dmg:+0.#;-0.#}% dmg");
-            if (cmp.After.HasRf && Math.Abs(cmp.After.NetRegen - cmp.Before.NetRegen) >= 1)
-                parts.Add($"{cmp.After.NetRegen - cmp.Before.NetRegen:+0;-0}/s RF sustain");
             var l = c.Listing;
             var age = DateTime.UtcNow - l.Indexed;
             Upgrades.Add(new UpgradeRow
             {
                 Price = $"{l.Amount:0.##} {(l.Currency == "divine" ? "div" : l.Currency == "chaos" ? "c" : l.Currency)}",
                 Name = cmp.Candidate?.Name ?? "?",
-                Gains = string.Join(" · ", parts),
+                Gains = c.Gains.Length > 0 ? c.Gains : "no change in tracked stats",
                 GainsBrush = CompareRowView.SentimentBrush(cmp.Overall),
                 Age = age.TotalDays >= 1 ? $"{age.TotalDays:0}d" : $"{Math.Max(0, age.TotalHours):0}h",
                 Url = c.Url,
@@ -118,11 +110,13 @@ public sealed class CompareViewModel : Observable
             });
         }
         UpgradeUrl = r.SearchUrl;
+        var opts = r.Plan.Options;
+        string ranking = $"resists{(opts.IncludeChaos ? " (chaos included)" : "")}, then {string.Join(", ", opts.Tracked.Select(t => t.IsDamage ? t.LabelFor(r.Skill) : t.Label.ToLowerInvariant()))}";
         UpgradeStatus = r.Candidates.Count == 0
-            ? (r.Total == 0 ? "Nothing listed meets the constraints within budget. Raise the budget or try the other priority."
+            ? (r.Total == 0 ? "Nothing listed meets the constraints within budget. Raise the budget or track other stats (Settings → Upgrade tracker)."
                             : $"{r.Total} listed, but none of the ones checked beat your current item without breaking something.")
-            : $"Click a result to see everything it changes. Best {Math.Min(10, r.Candidates.Count)} of {(r.Total >= 10000 ? "10,000+" : r.Total.ToString("N0"))} listed, ranked by {(r.Plan.Priority == PoeHelper.Core.Build.UpgradePriority.Life ? "life gained (none lose life)" : "damage gained")}"
-              + (r.Rejected > 0 ? $" ({r.Rejected} rejected: they'd break resists, sockets or requirements)" : "")
+            : $"Click a result to see everything it changes. Best {Math.Min(10, r.Candidates.Count)} of {(r.Total >= 10000 ? "10,000+" : r.Total.ToString("N0"))} listed, ranked by {ranking}. Resists that stay capped aren't shown"
+              + (r.Rejected > 0 ? $" ({r.Rejected} rejected: they'd break resists, sockets or requirements, or gain nothing you track)" : "")
               + ". Trade ↗ opens that one listing; Whisper copies the buy message."
               + (r.Plan.Weighted ? " (Weighted search: logged in.)" : "")
               + (r.Note is null ? "" : " " + r.Note);
@@ -172,7 +166,7 @@ public sealed class CompareViewModel : Observable
         var c = row.Candidate.Compare;
         Detail = row;
         ShowComparison(c, $"If you buy {c.Candidate?.Name} for {row.Price} and wear it as your {c.SlotLabel}"
-                          + (c.Current is null ? ":" : $", replacing {c.Current.Name}:"));
+                          + (c.Current is null ? ":" : $", replacing {c.Current.Name}:"), row.Candidate.Rows, row.Candidate.Warnings);
         DetailMods.Clear();
         DetailLoses.Clear();
         foreach (var m in c.Candidate?.Mods ?? []) DetailMods.Add(new ModLine(m));
@@ -200,8 +194,8 @@ public sealed class CompareViewModel : Observable
         var sk = build.Skill;
         DamageNote = sk is null
             ? "No active skill gem found, so damage only counts generic \"increased Damage\"."
-            : $"Damage is scored for {sk.Describe()}{(sk.Auto ? ", detected from your links (change it in Settings)" : ", set in Settings")}. "
-              + (sk.IsRf ? "RF: life × increased × DoT multi." : sk.IsMinion ? "Minions: minion damage, speed and gem levels."
+            : $"Damage is scored for {sk.Describe()}{(sk.Auto ? ", detected from your links (pick another in Settings)" : ", picked in Settings")}. "
+              + (sk.IsMinion ? "Minions: minion damage, speed and gem levels."
                  : sk.IsDot ? "Increased × DoT multi × gem levels." : "Base × increased × speed × crit × gem levels.")
               + " A relative estimate, not a PoB DPS number.";
         Error = null;
@@ -229,7 +223,7 @@ public sealed class CompareViewModel : Observable
         ClearUpgrades();
     }
 
-    void ShowComparison(SlotComparison c, string header)
+    void ShowComparison(SlotComparison c, string header, IEnumerable<CompareRow>? rows = null, IEnumerable<string>? warnings = null)
     {
         CurrentItem = header;
         Verdict = c.Verdict;
@@ -241,9 +235,9 @@ public sealed class CompareViewModel : Observable
             _ => new SolidColorBrush(Color.FromRgb(0xf2, 0xc8, 0x6a)),
         };
         Rows.Clear();
-        foreach (var r in c.Rows) Rows.Add(new CompareRowView(r));
+        foreach (var r in rows ?? c.Rows) Rows.Add(new CompareRowView(r));
         Warnings.Clear();
-        foreach (var w in c.Warnings) Warnings.Add(w);
+        foreach (var w in warnings ?? c.Warnings) Warnings.Add(w);
     }
 
     public void ShowMessage(string title, string message)

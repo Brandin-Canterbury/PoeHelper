@@ -52,13 +52,11 @@ public class BuildTests
         Assert.Equal(40 + 34 - 60, s.Fire.Total);          // body + Purity − penalty
         Assert.Equal(76, s.Fire.Max);
         Assert.Equal(30 + 34 + (40 + 34) * 0.5 - 60, s.Cold.Total);
-        Assert.True(s.HasRf);
-        Assert.Equal(s.Life * 0.9 * (1 - 14 / 100.0), s.RfDegen, 3);
         Assert.Equal(114, s.IntNeed.Need);
     }
 
     [Fact]
-    public void Swapping_to_fewer_sockets_drops_gems_and_warns_about_rf_links()
+    public void Swapping_to_fewer_sockets_drops_gems_and_warns_about_main_skill_links()
     {
         var item = ItemParser.Parse("""
             Item Class: Body Armours

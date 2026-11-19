@@ -216,6 +216,7 @@ public sealed class AppHost : IDisposable, IMenuActions
             {
                 overlay.Model.Budget = _settings.UpgradeBudget.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
                 overlay.Model.BudgetInDivines = _settings.UpgradeBudgetCurrency != "chaos";
+                overlay.Model.IncludeChaos = _settings.UpgradeIncludeChaos;
                 overlay.Model.Show(item, result, build);
             }
         }
@@ -250,13 +251,14 @@ public sealed class AppHost : IDisposable, IMenuActions
         string currency = m.BudgetInDivines ? "divine" : "chaos";
         _settings.UpgradeBudget = budget;
         _settings.UpgradeBudgetCurrency = currency;
+        _settings.UpgradeIncludeChaos = m.IncludeChaos;
         _settings.Save();
         m.ClearUpgrades();
         m.UpgradeStatus = "Searching Instant Buyout listings…";
         try
         {
             var r = await UpgradeFinder.RunAsync(_client, await _data, _rates, await _build, cmp.Slot, budget, currency, _settings.League,
-                m.PrioritiseLife ? UpgradePriority.Life : UpgradePriority.Damage);
+                new UpgradeOptions(TrackedStats.Resolve(_settings.TrackedStats), m.IncludeChaos));
             Log.Info($"Upgrade search {cmp.Slot}: {r.Total} listed, {r.Candidates.Count} kept, {r.Rejected} rejected");
             m.ShowUpgrades(r);
         }
@@ -328,7 +330,12 @@ public sealed class AppHost : IDisposable, IMenuActions
 
     void OpenSettings()
     {
-        var w = new SettingsWindow(_settings, _leagues);
+        // The skill dropdown lists the loaded character's active gems.
+        var skills = _build is { IsCompletedSuccessfully: true } loaded
+            ? loaded.Result.Items.Values.SelectMany(i => i.Gems).Where(g => !g.Support).Select(g => g.Name).Distinct().Order().ToList()
+            : [];
+        var detected = _build is { IsCompletedSuccessfully: true } ? MainSkill.Detect(_build.Result)?.Name : null;
+        var w = new SettingsWindow(_settings, _leagues, skills, detected);
         if (w.ShowDialog() != true) return;
         _client.Dispose();
         _client = CreateClient();

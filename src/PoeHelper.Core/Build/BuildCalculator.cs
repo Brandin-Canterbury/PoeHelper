@@ -31,16 +31,14 @@ public sealed class BuildStats
     public AttributeNeed DexNeed { get; init; } = new(0, 0, "");
     public AttributeNeed IntNeed { get; init; } = new(0, 0, "");
     public double LifeRegen { get; init; }
-    /// <summary>Righteous Fire self-burn after fire resistance (0 without RF).</summary>
-    public double RfDegen { get; init; }
-    public bool HasRf { get; init; }
-    public double NetRegen => LifeRegen - RfDegen;
+    /// <summary>Armour pieces' energy shield (their property block) + global flat, × global increases and Int.</summary>
+    public double EnergyShield { get; init; }
     /// <summary>The DoT multiplier (DoT skills) or crit multiplier (hit skills) that applies to the main skill.</summary>
     public double DamageMulti { get; init; }
     public double IncreasedDamage { get; init; }
     /// <summary>
-    /// Relative damage of the main skill. RF: % of life × increased × DoT multi. Other skills: base × increased ×
-    /// (DoT multi or crit) × speed × gem levels. Only meaningful as a ratio between two gear sets.
+    /// Relative damage of the main skill: base × increased × (DoT multi or crit) × speed × gem levels.
+    /// Only meaningful as a ratio between two gear sets.
     /// </summary>
     public double DamageIndex { get; init; }
     public SkillProfile? Skill { get; init; }
@@ -55,7 +53,7 @@ public sealed class BuildStats
 /// <summary>
 /// Character numbers from gear + tree + jewels + aura gems:
 /// life = (38 + 12·level + flat + Str/2) × (1 + %inc); resists = mods − 60 (act penalty) vs 75 + max-res mods;
-/// attributes vs the highest gem / item requirement; RF sustain = regen − RF burn × (1 − fire res).
+/// attributes vs the highest gem / item requirement; energy shield; the main skill's relative damage.
 /// No conditional mods ("while on Low Life", flasks, charges) are counted.
 /// </summary>
 public static partial class BuildCalculator
@@ -67,12 +65,20 @@ public static partial class BuildCalculator
 
     static bool IsWeapon(EquippedItem i) => i.Props.ContainsKey("Attacks per Second");
 
+    /// <summary>On armour, "+# to maximum Energy Shield" is local: already in the piece's Energy Shield property.</summary>
+    static bool IsArmourWithEs(EquippedItem i) => i.Props.ContainsKey("Energy Shield");
+
+    static IEnumerable<string> GlobalMods(EquippedItem it) =>
+        IsWeapon(it) ? it.Mods.Where(m => !IsLocalWeaponMod(m))
+        : IsArmourWithEs(it) ? it.Mods.Where(m => Data.TradeData.Skeleton(m) != "+# to maximum Energy Shield")
+        : it.Mods;
+
     public static BuildStats Compute(CharacterBuild b)
     {
         var lines = new List<string>(b.TreeStats);
         lines.AddRange(b.JewelMods);
         foreach (var it in b.Items.Values)
-            lines.AddRange(IsWeapon(it) ? it.Mods.Where(m => !IsLocalWeaponMod(m)) : it.Mods);
+            lines.AddRange(GlobalMods(it));
         var gems = b.Items.Values.SelectMany(i => i.Gems).ToList();
         // Aura gems: "You and nearby allies gain +34% to all Elemental Resistances".
         foreach (var g in gems.Where(g => !g.Support))
@@ -107,15 +113,10 @@ public static partial class BuildCalculator
 
         double regen = (life * t.LifeRegenPct / 100 + t.LifeRegenFlat) * (1 + t.LifeRegenRate / 100);
 
-        var rf = gems.FirstOrDefault(g => g.Name.Contains("Righteous Fire"));
-        double burnPct = 0;
-        if (rf is not null)
-            foreach (var m in rf.Mods)
-            {
-                var burn = RfBurn().Match(m);
-                if (burn.Success) burnPct = double.Parse(burn.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
-            }
-        double degen = life * burnPct / 100 * (1 - fire.Effective / 100);
+        // Energy shield: 2% increased per 10 Intelligence.
+        double esBase = t.EnergyShield + b.Items.Values.Where(IsArmourWithEs)
+            .Sum(i => Items.ItemParser.Numbers(i.Props["Energy Shield"]).DefaultIfEmpty(0).First());
+        double es = Math.Round(esBase * (1 + (t.EnergyShieldPct + Math.Floor(intl / 10) * 2) / 100));
 
         var skill = b.Skill;
         var dmg = Damage(b, skill, t, life);
@@ -127,7 +128,7 @@ public static partial class BuildCalculator
             StrNeed = Need(str, g => g.Str, i => i.ReqStr),
             DexNeed = Need(dex, g => g.Dex, i => i.ReqDex),
             IntNeed = Need(intl, g => g.Int, i => i.ReqInt),
-            LifeRegen = regen, RfDegen = degen, HasRf = rf is not null,
+            LifeRegen = regen, EnergyShield = es,
             DamageMulti = dmg.Multi, IncreasedDamage = dmg.Inc, DamageIndex = dmg.Index, Skill = skill,
             Speed = dmg.Speed, CritChance = dmg.Crit, SkillGemLevels = dmg.Levels,
             MovementSpeed = t.MovementSpeed,
@@ -164,21 +165,6 @@ public static partial class BuildCalculator
         foreach (var (kind, lv) in t.GlobalGemLevels)
             if (kind.Length == 0 || KindMatches(skill, kind)) levels += lv;
         double levelFactor = 1 + PerGemLevel * levels;
-
-        if (skill.IsRf)
-        {
-            double dmgPct = 0;
-            foreach (var m in skill.Gem.Mods)
-            {
-                var d = RfDamage().Match(m);
-                if (d.Success) dmgPct = double.Parse(d.Groups[1].Value, System.Globalization.CultureInfo.InvariantCulture);
-            }
-            // Everything that scales RF: it's a fire, burning, spell, elemental, area damage-over-time skill.
-            double inc = t.FireDamagePct + t.BurningDamagePct + t.SpellDamagePct + t.ElementalDamagePct + t.DamagePct
-                         + t.DamageOverTimePct + t.AreaDamagePct;
-            double multi = t.FireDotMulti + t.DotMulti;
-            return new((dmgPct > 0 ? dmgPct : 70) / 100 * life * (1 + inc / 100) * (1 + multi / 100), inc, multi, 1, 0, levels);
-        }
 
         var types = skill.Elements;
         bool ele = types.Any(e => e is "Fire" or "Cold" or "Lightning");
@@ -261,10 +247,4 @@ public static partial class BuildCalculator
 
     [GeneratedRegex(@"^You and nearby [Aa]llies (?:gain |have )?(.+)$")]
     private static partial Regex AuraPrefix();
-
-    [GeneratedRegex(@"You Burn for ([\d.]+)% of your Maximum Life per second")]
-    private static partial Regex RfBurn();
-
-    [GeneratedRegex(@"Deals ([\d.]+)% of your Maximum Life as Base Fire Damage per second")]
-    private static partial Regex RfDamage();
 }

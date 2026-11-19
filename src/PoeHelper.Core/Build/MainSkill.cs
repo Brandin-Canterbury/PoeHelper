@@ -11,7 +11,6 @@ public sealed record SkillProfile(GemInfo Gem, string Slot, int LinkedSupports, 
     public string Name => Gem.Name;
     public IReadOnlyList<string> Tags => Gem.Tags ?? [];
     public bool Has(string tag) => Tags.Contains(tag, StringComparer.OrdinalIgnoreCase);
-    public bool IsRf => Gem.Name.Contains("Righteous Fire");
     public bool IsMinion => Has("Minion");
     public bool IsAttack => Has("Attack") && !IsMinion;
     public bool IsSpell => Has("Spell") && !IsMinion && !IsAttack;
@@ -62,8 +61,7 @@ public static partial class MainSkill
         if (pick.Gem is not null) auto = false;
         else
         {
-            bool Utility(GemInfo g) => g.Tags is { } t && t.Any(x => UtilityTags.Contains(x, StringComparer.OrdinalIgnoreCase))
-                                       && !g.Name.Contains("Righteous Fire");
+            bool Utility(GemInfo g) => g.Tags is { } t && t.Any(x => UtilityTags.Contains(x, StringComparer.OrdinalIgnoreCase));
             pick = candidates.OrderBy(c => Utility(c.Gem) ? 1 : 0)
                              .ThenByDescending(c => c.Supports)
                              .ThenByDescending(c => c.Gem.Level)
@@ -72,8 +70,7 @@ public static partial class MainSkill
 
         var item = b.Items[pick.Slot];
         var linked = item.Gems.Where(s => s.Support && s.Group == pick.Gem.Group).ToList();
-        bool dot = pick.Gem.Name.Contains("Righteous Fire")
-                   || pick.Gem.Mods.Any(m => DotRx().IsMatch(m))
+        bool dot = pick.Gem.Mods.Any(m => DotRx().IsMatch(m))
                    || linked.Count(s => DotSupports.Any(d => s.Name.StartsWith(d))) >= 1;
         return new SkillProfile(pick.Gem, pick.Slot, pick.Supports, auto) { IsDot = dot };
     }

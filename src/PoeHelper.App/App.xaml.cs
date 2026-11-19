@@ -34,7 +34,7 @@ public partial class App : Application
         // Dev/QA: PoeHelper.exe --window help|settings <out.png>  renders a dialog to PNG.
         if (e.Args.Length == 3 && e.Args[0] == "--window")
         {
-            Window w = e.Args[1] == "help" ? new SessionHelpWindow() : new SettingsWindow(Core.AppSettings.Load(), ["Covens"]);
+            Window w = e.Args[1] == "help" ? new SessionHelpWindow() : new SettingsWindow(Core.AppSettings.Load(), ["Covens"], ["Herald of Ash", "Righteous Fire", "Vitality"], "Righteous Fire");
             w.WindowStartupLocation = WindowStartupLocation.Manual;
             w.Left = 40; w.Top = 40;
             w.Show();

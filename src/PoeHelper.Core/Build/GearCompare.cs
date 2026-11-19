@@ -142,26 +142,16 @@ public static class GearCompare
                 c.Warnings.Add($"{name} {na.Have:0} is short of {na.Need} needed by {na.NeededBy}.");
         }
 
-        if (a.HasRf)
-        {
-            var row = Num("RF net regen /s", b.NetRegen, a.NetRegen, true);
-            // Bad only when this swap is what tips RF into net degen.
-            if (a.NetRegen < 0 && b.NetRegen >= 0) row = row with { Sentiment = Sentiment.Bad };
-            c.Rows.Add(row);
-            if (a.NetRegen < 0 && b.NetRegen >= 0)
-                c.Warnings.Add($"Righteous Fire would out-burn your regen ({a.NetRegen:0}/s).");
-        }
-
         double dmgChange = DamageChangePct(b, a);
         var skill = b.Skill;
         c.Rows.Add(new CompareRow(skill is null ? "Damage" : $"{skill.Name} damage", "", "",
             Math.Abs(dmgChange) < 0.05 ? "" : $"{dmgChange:+0.0;-0.0}%",
             dmgChange > 0.05 ? Sentiment.Better : dmgChange < -0.05 ? Sentiment.Worse : Sentiment.Neutral));
-        bool dot = skill is null || skill.IsDot || skill.IsRf;
+        bool dot = skill is null || skill.IsDot;
         if (skill is not { IsMinion: true })
             AddIfChanged(c, dot ? "DoT multiplier" : "Crit multiplier", b.DamageMulti, a.DamageMulti, "%");
         AddIfChanged(c, skill is { IsMinion: true } ? "Minion damage" : "Increased damage", b.IncreasedDamage, a.IncreasedDamage, "%");
-        if (skill is { IsDot: false, IsRf: false })
+        if (skill is { IsDot: false })
         {
             AddIfChanged(c, "Crit chance", b.CritChance, a.CritChance, "%");
             if (Math.Abs(a.Speed - b.Speed) > 0.005)
@@ -169,10 +159,11 @@ public static class GearCompare
                     b.Speed.ToString("0.00", CultureInfo.InvariantCulture), a.Speed.ToString("0.00", CultureInfo.InvariantCulture),
                     $"{(a.Speed / b.Speed - 1) * 100:+0.#;-0.#}%", a.Speed > b.Speed ? Sentiment.Better : Sentiment.Worse));
         }
+        AddIfChanged(c, "Energy shield", b.EnergyShield, a.EnergyShield, "");
         AddIfChanged(c, "Movement speed", b.MovementSpeed, a.MovementSpeed, "%");
         AddIfChanged(c, "+Skill gem levels", b.SkillGemLevels, a.SkillGemLevels, "");
 
-        // Sockets and links: losing the RF 6-link is the worst outcome.
+        // Sockets and links: losing the main skill's links is the worst outcome.
         if (current is { Gems.Count: > 0 })
         {
             if (lost.Count > 0)
@@ -196,7 +187,6 @@ public static class GearCompare
         void Note(double v, string pos, string neg) { if (v > 0) gains.Add(pos); else if (v < 0) losses.Add(neg); }
         Note(a.Life - b.Life, $"+{a.Life - b.Life:0} life", $"{a.Life - b.Life:0} life");
         if (Math.Abs(dmgChange) >= 0.5) Note(dmgChange, $"+{dmgChange:0.#}% damage", $"{dmgChange:0.#}% damage");
-        if (a.HasRf) Note(Math.Round(a.NetRegen - b.NetRegen), $"+{a.NetRegen - b.NetRegen:0}/s RF sustain", $"{a.NetRegen - b.NetRegen:0}/s RF sustain");
 
         // One number to rank: life % + damage %, but anything that breaks the build wins.
         double score = lifePct + dmgChange;
@@ -225,13 +215,12 @@ public static class GearCompare
 
     static string ShortReason(SlotComparison c)
     {
-        if (c.Warnings.Any(w => w.Contains("RF setup"))) return "it breaks your Righteous Fire links.";
+        if (c.Warnings.Any(w => w.Contains(" setup is in this slot"))) return "it breaks your main skill's links.";
         if (c.Warnings.Any(w => w.Contains("wouldn't fit"))) return "your socketed gems wouldn't fit.";
         var bad = c.Rows.FirstOrDefault(r => r.Sentiment == Sentiment.Bad);
         return bad is null ? "it breaks a requirement." : bad.Label switch
         {
             var l when l.EndsWith(" res") => $"{l} drops below cap.",
-            var l when l.StartsWith("RF net") => "Righteous Fire would out-burn your regen.",
             var l => $"{l.Split(' ')[0]} requirement not met.",
         };
     }

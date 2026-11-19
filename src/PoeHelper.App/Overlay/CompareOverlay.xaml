@@ -140,9 +140,8 @@
                                 <TextBox Text="{Binding Budget, UpdateSourceTrigger=PropertyChanged}" Width="46" Margin="0,0,4,0" VerticalContentAlignment="Center" />
                                 <RadioButton Style="{StaticResource Segment}" GroupName="cur" Content="div" IsChecked="{Binding BudgetInDivines}" />
                                 <RadioButton Style="{StaticResource Segment}" GroupName="cur" Content="c" IsChecked="{Binding BudgetInChaos}" />
-                                <TextBlock Text="Prioritise" VerticalAlignment="Center" Margin="10,0,6,0" />
-                                <RadioButton Style="{StaticResource Segment}" GroupName="pri" Content="Life" IsChecked="{Binding PrioritiseLife}" />
-                                <RadioButton Style="{StaticResource Segment}" GroupName="pri" Content="Damage" IsChecked="{Binding PrioritiseDamage}" />
+                                <CheckBox Content="Include chaos res" IsChecked="{Binding IncludeChaos}" VerticalAlignment="Center" Margin="12,0,0,0"
+                                          ToolTip="Count chaos resistance with the elemental ones: keep it capped if it is, otherwise rank items that raise it first" />
                             </StackPanel>
                             <TextBlock Text="{Binding UpgradeStatus}" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,6,0,0"
                                        Visibility="{Binding HasUpgradeStatus, Converter={StaticResource BoolToVis}}" />

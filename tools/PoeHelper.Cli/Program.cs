@@ -20,10 +20,14 @@ if (args.Length == 3 && args[0] == "build")
         Console.WriteLine($"  {n,-9} {r.Effective}/{r.Max}  (total {r.Total}, overcap {r.Overcap})");
     foreach (var (n, a2) in new[] { ("Str", st.StrNeed), ("Dex", st.DexNeed), ("Int", st.IntNeed) })
         Console.WriteLine($"  {n} {a2.Have} vs need {a2.Need} ({a2.NeededBy}) {(a2.Met ? "ok" : "NOT MET")}");
-    Console.WriteLine($"Regen {st.LifeRegen:0.0}/s  RF degen {st.RfDegen:0.0}/s  net {st.NetRegen:0.0}/s");
+    Console.WriteLine($"Regen {st.LifeRegen:0.0}/s  ES {st.EnergyShield}");
     Console.WriteLine($"Main skill {st.Skill?.Describe() ?? "(none)"}{(st.Skill is { Auto: false } ? " [override]" : "")}, linked supports {st.Skill?.LinkedSupports}");
     Console.WriteLine($"Inc dmg {st.IncreasedDamage}%  multi {st.DamageMulti}%  speed {st.Speed:0.00}  crit {st.CritChance:0.#}%  gem levels +{st.SkillGemLevels}  dmg index {st.DamageIndex:0.##}");
-    foreach (var it in build.Items.Values) Console.WriteLine($"  [{it.Slot}] {it.Name}  sockets {it.SocketCount} links {it.MaxLinks} gems {it.Gems.Count}");
+    foreach (var it in build.Items.Values)
+    {
+        Console.WriteLine($"  [{it.Slot}] {it.Name}  sockets {it.SocketCount} links {it.MaxLinks} gems {it.Gems.Count}");
+        if (Environment.GetEnvironmentVariable("POEHELPER_DEBUG") == "1") Console.WriteLine("      " + string.Join(" | ", it.Mods));
+    }
     return 0;
 }
 
@@ -49,23 +53,26 @@ if (args.Length >= 6 && args[0] == "upgrade")
 {
     var build = await CharacterBuild.LoadAsync(client, args[1], args[2], AppSettings.CacheDir);
     var tdata = await TradeData.LoadAsync(client, AppSettings.CacheDir);
+    // upgrade <account> <character> <slot> <budget> <divine|chaos> [tracked keys, comma-separated] [chaos]
+    build.MainSkillOverride = settings.MainSkill;
+    var opts = new UpgradeOptions(TrackedStats.Resolve(args.Length > 6 ? args[6].Split(',') : settings.TrackedStats),
+        args.Length > 7 ? args[7] == "chaos" : settings.UpgradeIncludeChaos);
     File.WriteAllText(Path.Combine(Path.GetTempPath(), "poehelper-upgrade-query.json"),
-        UpgradeFinder.Plan(build, args[3], tdata, double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture), args[5]).Query.ToJsonString());
+        UpgradeFinder.Plan(build, args[3], tdata, double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture), args[5], opts).Query.ToJsonString());
     var r = await UpgradeFinder.RunAsync(client, tdata, new CurrencyRates(), build, args[3],
-        double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture), args[5], settings.League,
-        args.Length > 6 ? Enum.Parse<UpgradePriority>(args[6], true) : UpgradePriority.Auto);
+        double.Parse(args[4], System.Globalization.CultureInfo.InvariantCulture), args[5], settings.League, opts);
     Console.WriteLine($"Upgrade for {args[3]} ({build.Items.GetValueOrDefault(args[3])?.Name}): {r.Total} listed, {r.Rejected} rejected");
     foreach (var c in r.Plan.Constraints) Console.WriteLine($"  must: {c}");
     foreach (var w in r.Plan.Weights) Console.WriteLine($"  weight {w.Weight,5} {w.Label}");
-    Console.WriteLine($"  current item weighted value {r.Plan.CurrentWeightedValue:0}; priority {r.Plan.Priority}, sorted by {r.Plan.SortStat}");
+    Console.WriteLine($"  tracked: {string.Join(", ", opts.Tracked.Select(t => t.LabelFor(build.Skill)))}; chaos {(opts.IncludeChaos ? "on" : "off")}; sorted by {r.Plan.SortStat}");
     foreach (var c in r.Candidates.Take(8))
-        Console.WriteLine($"  {c.Listing.Amount} {c.Listing.Currency,-7} {c.Compare.Candidate?.Name,-40} score {c.Compare.Score:+0.0;-0.0}  {c.Compare.Verdict}");
+        Console.WriteLine($"  {c.Listing.Amount} {c.Listing.Currency,-7} {c.Compare.Candidate?.Name,-40} short {c.ResistShortfall:0} tracked {c.TrackedScore:+0.00;-0.00}  {c.Gains}");
     if (Environment.GetEnvironmentVariable("POEHELPER_DEBUG") == "1" && r.Candidates.Count > 0)
     {
         Console.WriteLine("  url0 " + r.Candidates[0].Url);
         var c0 = r.Candidates[0].Compare;
         Console.WriteLine("  first candidate mods: " + string.Join(" | ", c0.Candidate!.Mods));
-        foreach (var row in c0.Rows) Console.WriteLine($"     {row.Label,-22} {row.Before,10} -> {row.After,-10} {row.Delta}");
+        foreach (var row in r.Candidates[0].Rows) Console.WriteLine($"     {row.Label,-22} {row.Before,10} -> {row.After,-10} {row.Delta}");
     }
     Console.WriteLine($"  {r.SearchUrl}");
     return 0;
