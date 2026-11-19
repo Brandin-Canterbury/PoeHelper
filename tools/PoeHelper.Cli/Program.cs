@@ -61,6 +61,7 @@ if (args.Length >= 6 && args[0] == "upgrade")
         Console.WriteLine($"  {c.Listing.Amount} {c.Listing.Currency,-7} {c.Compare.Candidate?.Name,-40} score {c.Compare.Score:+0.0;-0.0}  {c.Compare.Verdict}");
     if (Environment.GetEnvironmentVariable("POEHELPER_DEBUG") == "1" && r.Candidates.Count > 0)
     {
+        Console.WriteLine("  url0 " + r.Candidates[0].Url);
         var c0 = r.Candidates[0].Compare;
         Console.WriteLine("  first candidate mods: " + string.Join(" | ", c0.Candidate!.Mods));
         foreach (var row in c0.Rows) Console.WriteLine($"     {row.Label,-22} {row.Before,10} -> {row.After,-10} {row.Delta}");

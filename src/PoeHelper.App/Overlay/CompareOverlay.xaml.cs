@@ -35,4 +35,17 @@ public partial class CompareOverlay : Window
     {
         if (Model.UpgradeUrl is { } url) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
     }
+
+    void OnOpenListing(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is UpgradeRow { Url: { } url })
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(url) { UseShellExecute = true });
+    }
+
+    void OnCopyWhisper(object sender, RoutedEventArgs e)
+    {
+        if (((FrameworkElement)sender).DataContext is not UpgradeRow { Whisper: { } w } || sender is not System.Windows.Controls.Button b) return;
+        try { Clipboard.SetText(w); b.Content = "Copied ✓"; }
+        catch (Exception ex) { Log.Info("Copy whisper failed: " + ex.Message); }
+    }
 }

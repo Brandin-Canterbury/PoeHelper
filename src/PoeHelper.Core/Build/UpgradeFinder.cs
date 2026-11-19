@@ -25,7 +25,7 @@ public sealed class UpgradePlan
     public bool Weighted { get; init; }
 }
 
-public sealed record UpgradeCandidate(Listing Listing, SlotComparison Compare, string? Whisper);
+public sealed record UpgradeCandidate(Listing Listing, SlotComparison Compare, string? Whisper, string? Url = null);
 
 public sealed class UpgradeResult
 {
@@ -272,7 +272,8 @@ public static class UpgradeFinder
                              || (item["baseType"]?.GetValue<string>() ?? "") is var b && (b.Contains("Staff") || b.EndsWith("Bow"));
             var cmp = GearCompare.CompareEquipped(build, slot, candidate, twoHanded, before);
             if (cmp.Overall == Sentiment.Bad) { result.Rejected++; continue; }
-            result.Candidates.Add(new UpgradeCandidate(listing, cmp, r["listing"]?["whisper"]?.GetValue<string>()));
+            result.Candidates.Add(new UpgradeCandidate(listing, cmp, r["listing"]?["whisper"]?.GetValue<string>(),
+                ListingUrl(plan.Query, league, r["listing"]?["account"]?["name"]?.GetValue<string>(), item["baseType"]?.GetValue<string>())));
         }
         // Best first; ties go to the cheaper listing.
         result.Candidates.Sort((x, y) =>
@@ -281,6 +282,24 @@ public static class UpgradeFinder
             return c != 0 ? c : (x.Listing.Chaos ?? double.MaxValue).CompareTo(y.Listing.Chaos ?? double.MaxValue);
         });
         return result;
+    }
+
+    /// <summary>
+    /// A trade-site link that shows just this listing: the same search, narrowed to the seller's account and the
+    /// item's base type. It's a <c>?q=</c> link, so opening it costs no API call.
+    /// </summary>
+    public static string? ListingUrl(JsonObject query, string league, string? account, string? baseType)
+    {
+        if (string.IsNullOrEmpty(account)) return null;
+        var q = (JsonObject)query.DeepClone();
+        var inner = (JsonObject)q["query"]!;
+        if (!string.IsNullOrEmpty(baseType)) inner["type"] = baseType;
+        var filters = inner["filters"] as JsonObject ?? (JsonObject)(inner["filters"] = new JsonObject());
+        var trade = filters["trade_filters"] as JsonObject ?? (JsonObject)(filters["trade_filters"] = new JsonObject());
+        var tf = trade["filters"] as JsonObject ?? (JsonObject)(trade["filters"] = new JsonObject());
+        tf["account"] = new JsonObject { ["input"] = account };
+        q["sort"] = new JsonObject { ["price"] = "asc" };
+        return $"{TradeClient.BaseUrl}/trade/search/{Uri.EscapeDataString(league)}?q={Uri.EscapeDataString(q.ToJsonString())}";
     }
 
     /// <summary>The score GearCompare ranks by: life % change + damage % change.</summary>

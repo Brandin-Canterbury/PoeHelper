@@ -39,4 +39,18 @@ public class UpgradePlanTests(DataFixture fx) : IClassFixture<DataFixture>
         Assert.True(weight["value"]!["min"]!.GetValue<double>() >= 50, weight.ToJsonString()); // at least the old ring's 50 life
         Assert.Equal("desc", plan.Query["sort"]!["statgroup.0"]!.GetValue<string>());
     }
+
+    [Fact]
+    public void Listing_url_narrows_the_search_to_one_seller_and_base()
+    {
+        var plan = UpgradeFinder.Plan(Build(), "Ring", fx.Data, 2, "divine", weighted: true);
+        var url = UpgradeFinder.ListingUrl(plan.Query, "Covens", "Seller#1234", "Amethyst Ring")!;
+        Assert.StartsWith("https://www.pathofexile.com/trade/search/Covens?q=", url);
+        var q = System.Text.Json.Nodes.JsonNode.Parse(Uri.UnescapeDataString(url[(url.IndexOf("?q=") + 3)..]))!;
+        Assert.Equal("Seller#1234", q["query"]!["filters"]!["trade_filters"]!["filters"]!["account"]!["input"]!.GetValue<string>());
+        Assert.Equal("Amethyst Ring", q["query"]!["type"]!.GetValue<string>());
+        Assert.NotNull(q["query"]!["filters"]!["trade_filters"]!["filters"]!["price"]); // budget kept
+        Assert.Null(plan.Query["query"]!["type"]); // the plan's own query is untouched
+        Assert.Null(UpgradeFinder.ListingUrl(plan.Query, "Covens", null, "Amethyst Ring"));
+    }
 }

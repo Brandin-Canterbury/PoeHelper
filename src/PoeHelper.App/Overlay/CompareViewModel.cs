@@ -38,6 +38,10 @@ public sealed class UpgradeRow
     public required string Gains { get; init; }
     public required Brush GainsBrush { get; init; }
     public required string Age { get; init; }
+    public string? Url { get; init; }
+    public string? Whisper { get; init; }
+    public bool HasUrl => Url is not null;
+    public bool HasWhisper => Whisper is not null;
 }
 
 public sealed class CompareViewModel : Observable
@@ -96,6 +100,8 @@ public sealed class CompareViewModel : Observable
                 Gains = string.Join(" · ", parts),
                 GainsBrush = CompareRowView.SentimentBrush(cmp.Overall),
                 Age = age.TotalDays >= 1 ? $"{age.TotalDays:0}d" : $"{Math.Max(0, age.TotalHours):0}h",
+                Url = c.Url,
+                Whisper = c.Whisper,
             });
         }
         UpgradeUrl = r.SearchUrl;
@@ -104,7 +110,7 @@ public sealed class CompareViewModel : Observable
                             : $"{r.Total} listed, but none of the ones checked beat your current item without breaking something.")
             : $"Best {Math.Min(10, r.Candidates.Count)} of {(r.Total >= 10000 ? "10,000+" : r.Total.ToString("N0"))} listed, ranked by life + damage for your build"
               + (r.Rejected > 0 ? $" ({r.Rejected} rejected: they'd break resists, sockets or requirements)" : "")
-              + ". Buy on the trade site."
+              + ". Trade ↗ opens that one listing; Whisper copies the buy message."
               + (r.Plan.Weighted ? " (Weighted search: logged in.)" : "")
               + (r.Note is null ? "" : " " + r.Note);
         Raise(nameof(HasUpgrades));

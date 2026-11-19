@@ -138,7 +138,7 @@
                                             <Border x:Name="row" Padding="4,3">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="58" /><ColumnDefinition Width="*" /><ColumnDefinition Width="30" />
+                                                        <ColumnDefinition Width="58" /><ColumnDefinition Width="*" /><ColumnDefinition Width="30" /><ColumnDefinition Width="Auto" />
                                                     </Grid.ColumnDefinitions>
                                                     <TextBlock Text="{Binding Price}" Foreground="{StaticResource Gold}" FontWeight="SemiBold" />
                                                     <StackPanel Grid.Column="1">
@@ -146,6 +146,14 @@
                                                         <TextBlock Text="{Binding Gains}" Foreground="{Binding GainsBrush}" FontSize="12" />
                                                     </StackPanel>
                                                     <TextBlock Grid.Column="2" Text="{Binding Age}" Foreground="{StaticResource Muted}" HorizontalAlignment="Right" />
+                                                    <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="6,0,0,0">
+                                                        <Button Content="Trade ↗" Style="{StaticResource FlatButton}" Padding="6,1" FontSize="11" Click="OnOpenListing"
+                                                                ToolTip="Open just this listing on the trade site"
+                                                                Visibility="{Binding HasUrl, Converter={StaticResource BoolToVis}}" />
+                                                        <Button Content="Whisper" Style="{StaticResource FlatButton}" Padding="6,1" FontSize="11" Margin="4,0,0,0" Click="OnCopyWhisper"
+                                                                ToolTip="Copy the seller's buy message; paste it in game chat"
+                                                                Visibility="{Binding HasWhisper, Converter={StaticResource BoolToVis}}" />
+                                                    </StackPanel>
                                                 </Grid>
                                             </Border>
                                             <DataTemplate.Triggers>
