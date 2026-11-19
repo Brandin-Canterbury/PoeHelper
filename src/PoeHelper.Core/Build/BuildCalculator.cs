@@ -31,6 +31,11 @@ public sealed class BuildStats
     public AttributeNeed DexNeed { get; init; } = new(0, 0, "");
     public AttributeNeed IntNeed { get; init; } = new(0, 0, "");
     public double LifeRegen { get; init; }
+    /// <summary>Life lost per second to the scored skill itself (e.g. Righteous Fire's burn); 0 for most skills.</summary>
+    public double SkillSelfDamage { get; init; }
+    public double NetRegen => LifeRegen - SkillSelfDamage;
+    /// <summary>The skill-specific formula in use, if the scored skill has one.</summary>
+    public SkillFormula? Formula { get; init; }
     /// <summary>Armour pieces' energy shield (their property block) + global flat, × global increases and Int.</summary>
     public double EnergyShield { get; init; }
     /// <summary>The DoT multiplier (DoT skills) or crit multiplier (hit skills) that applies to the main skill.</summary>
@@ -119,7 +124,9 @@ public static partial class BuildCalculator
         double es = Math.Round(esBase * (1 + (t.EnergyShieldPct + Math.Floor(intl / 10) * 2) / 100));
 
         var skill = b.Skill;
+        var formula = SkillFormulas.For(skill);
         var dmg = Damage(b, skill, t, life);
+        double selfDamage = formula is not null && skill is not null ? formula.SelfDamagePerSecond(skill, life, fire) : 0;
 
         return new BuildStats
         {
@@ -128,7 +135,7 @@ public static partial class BuildCalculator
             StrNeed = Need(str, g => g.Str, i => i.ReqStr),
             DexNeed = Need(dex, g => g.Dex, i => i.ReqDex),
             IntNeed = Need(intl, g => g.Int, i => i.ReqInt),
-            LifeRegen = regen, EnergyShield = es,
+            LifeRegen = regen, EnergyShield = es, SkillSelfDamage = selfDamage, Formula = formula,
             DamageMulti = dmg.Multi, IncreasedDamage = dmg.Inc, DamageIndex = dmg.Index, Skill = skill,
             Speed = dmg.Speed, CritChance = dmg.Crit, SkillGemLevels = dmg.Levels,
             MovementSpeed = t.MovementSpeed,
@@ -165,6 +172,10 @@ public static partial class BuildCalculator
         foreach (var (kind, lv) in t.GlobalGemLevels)
             if (kind.Length == 0 || KindMatches(skill, kind)) levels += lv;
         double levelFactor = 1 + PerGemLevel * levels;
+
+        // Skills with their own mechanics (only the scored skill's formula is ever used).
+        if (SkillFormulas.For(skill)?.Damage(skill, t, life, levelFactor) is { } own)
+            return new(own.Index, own.Inc, own.Multi, 1, 0, levels);
 
         var types = skill.Elements;
         bool ele = types.Any(e => e is "Fire" or "Cold" or "Lightning");

@@ -101,6 +101,33 @@ public class BuildTests
     }
 
     [Fact]
+    public void Righteous_fire_formula_only_applies_when_rf_is_the_scored_skill()
+    {
+        var lifeRing = new EquippedItem { Slot = "Ring", Name = "Life Ring", Mods = ["+100 to maximum Life"] };
+        var rf = Rf();
+        var before = BuildCalculator.Compute(rf);
+        var after = BuildCalculator.Compute(rf.WithItem("Ring", lifeRing));
+        Assert.IsType<RighteousFireFormula>(before.Formula);
+        Assert.Equal(before.Life * 0.9 * (1 - 14 / 100.0), before.SkillSelfDamage, 3); // 90% burn, 14% fire res
+        Assert.True(GearCompare.DamageChangePct(before, after) > 5);                 // life is RF damage
+        var cmp = GearCompare.CompareEquipped(rf, "Ring", lifeRing);
+        Assert.Contains(cmp.Rows, r => r.Label == "Righteous Fire net regen /s");
+
+        // Pick another skill in Settings: no RF burn, no life-as-damage.
+        var other = Rf(new EquippedItem
+        {
+            Slot = "Gloves", Name = "Gloves", SocketCount = 1, MaxLinks = 1,
+            Gems = [new GemInfo("Fireball", 20, 0, 0, 0, [], false, ["Spell", "Projectile", "Fire"])],
+        });
+        other.MainSkillOverride = "Fireball";
+        var b2 = BuildCalculator.Compute(other);
+        Assert.Null(b2.Formula);
+        Assert.Equal(0, b2.SkillSelfDamage);
+        Assert.Equal(0, GearCompare.DamageChangePct(b2, BuildCalculator.Compute(other.WithItem("Ring", lifeRing))), 3);
+        Assert.DoesNotContain(GearCompare.CompareEquipped(other, "Ring", lifeRing).Rows, r => r.Label.Contains("net regen"));
+    }
+
+    [Fact]
     public void Strips_api_markup()
     {
         Assert.Equal("Allocates Golem's Blood", CharacterBuild.StripMarkup("Allocates [golem's_blood1088|Golem's Blood]"));

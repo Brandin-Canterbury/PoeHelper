@@ -75,16 +75,23 @@ Only the stats that apply to that skill's tags count. A cold spell ignores "incr
 | **Spells** | an assumed base for the gem's level + flat added damage, × increased × cast speed × crit × gem levels |
 | **Minions** | minion damage × minion speed × gem levels |
 
+**Skill-specific formulas.** Some skills have mechanics the tag model can't see. These formulas only switch on when that skill is the one being scored (picked in Settings, or Auto's pick); Settings says when one is active:
+
+| Skill | Formula |
+|---|---|
+| **Righteous Fire** | damage = % of life × increased × DoT multiplier × gem levels, so life counts as damage. Its burn (reduced by fire res) is compared with your regen: a "Righteous Fire net regen /s" row, and **Don't swap** if an item tips you into net degen. |
+
 Gem levels count +10% each: socketed ones on the skill's own item, and global ones like "+1 to Level of all Minion Skill Gems". When "skill damage" is tracked, Find upgrade's damage weights come from the same model, so a minion build is shown minion stats, a bow build attack stats, and so on. Nothing is specific to one skill.
 
 The verdict is one line: Upgrade, Downgrade, Sidegrade or **Don't swap**. "Don't swap" means the item breaks something:
 - your main skill's links, or gem sockets;
 - an elemental resist falling under cap;
-- an attribute requirement no longer met.
+- an attribute requirement no longer met;
+- a skill-specific check failing (e.g. Righteous Fire out-burning your regen).
 
 Rings show a tab for each ring slot.
 
-What's **not** modelled: conditional mods ("while on Low Life", flasks, charges), skills whose damage scales with life or self-damage from skills, damage conversion, more multipliers from support gems, ailments from hits, local armour defences, and full PoB damage. Gear is fetched from your public profile when the app starts. After changing gear, click **Reload character**.
+What's **not** modelled: conditional mods ("while on Low Life", flasks, charges), damage conversion, more multipliers from support gems, ailments from hits, local armour defences, and full PoB damage. Gear is fetched from your public profile when the app starts. After changing gear, click **Reload character**.
 
 ## Find upgrade (button on the compare panel)
 

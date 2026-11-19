@@ -57,6 +57,9 @@ public static class UpgradeFinder
     /// <summary>Stats that feed skill damage: trade text, probe line, probe size, a typical good roll.</summary>
     static readonly (string Text, string Probe, double Unit, double TypicalRoll)[] DamageStats =
     [
+        // Only weighted when the scored skill's formula turns life into damage (e.g. Righteous Fire).
+        ("pseudo.pseudo_total_life", "+10 to maximum Life", 10, 80),
+        ("#% increased maximum Life", "1% increased maximum Life", 1, 8),
         ("+#% to Fire Damage over Time Multiplier", "+1% to Fire Damage over Time Multiplier", 1, 25),
         ("+#% to Cold Damage over Time Multiplier", "+1% to Cold Damage over Time Multiplier", 1, 25),
         ("+#% to Chaos Damage over Time Multiplier", "+1% to Chaos Damage over Time Multiplier", 1, 25),
@@ -183,7 +186,8 @@ public static class UpgradeFinder
                 {
                     var probed = build.WithItem("__probe", new EquippedItem { Slot = "__probe", Name = "probe", Mods = [probe] });
                     double gain = GearCompare.DamageChangePct(now, BuildCalculator.Compute(probed)) / unit / ts.Typical;
-                    if (data.StatsBySkeleton("explicit", text).FirstOrDefault()?.Id is { } id) Weigh(id, text, gain, typical);
+                    string? id = text.StartsWith("pseudo.") ? text : data.StatsBySkeleton("explicit", text).FirstOrDefault()?.Id;
+                    if (id is not null) Weigh(id, text.StartsWith("pseudo.") ? "Maximum life" : text, gain, typical);
                 }
                 continue;
             }

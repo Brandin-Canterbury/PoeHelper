@@ -142,6 +142,16 @@ public static class GearCompare
                 c.Warnings.Add($"{name} {na.Have:0} is short of {na.Need} needed by {na.NeededBy}.");
         }
 
+        // Skill self-damage (e.g. Righteous Fire's burn): Bad only when this swap tips it into net degen.
+        if (a.SkillSelfDamage > 0 && skillName(a) is { } sn)
+        {
+            var row = Num($"{sn} net regen /s", b.NetRegen, a.NetRegen, true);
+            if (a.NetRegen < 0 && b.NetRegen >= 0) row = row with { Sentiment = Sentiment.Bad };
+            c.Rows.Add(row);
+            if (a.NetRegen < 0 && b.NetRegen >= 0)
+                c.Warnings.Add($"{sn} would out-burn your regen ({a.NetRegen:0}/s).");
+        }
+
         double dmgChange = DamageChangePct(b, a);
         var skill = b.Skill;
         c.Rows.Add(new CompareRow(skill is null ? "Damage" : $"{skill.Name} damage", "", "",
@@ -178,6 +188,8 @@ public static class GearCompare
         Summarize(c, b, a, dmgChange);
     }
 
+    static string? skillName(BuildStats s) => s.Skill?.Name;
+
     static void Summarize(SlotComparison c, BuildStats b, BuildStats a, double dmgChange)
     {
         bool broken = c.Rows.Any(r => r.Sentiment == Sentiment.Bad) || c.Warnings.Any(w => w.Contains("wouldn't fit") || w.Contains("Links drop"));
@@ -187,6 +199,7 @@ public static class GearCompare
         void Note(double v, string pos, string neg) { if (v > 0) gains.Add(pos); else if (v < 0) losses.Add(neg); }
         Note(a.Life - b.Life, $"+{a.Life - b.Life:0} life", $"{a.Life - b.Life:0} life");
         if (Math.Abs(dmgChange) >= 0.5) Note(dmgChange, $"+{dmgChange:0.#}% damage", $"{dmgChange:0.#}% damage");
+        if (a.SkillSelfDamage > 0) Note(Math.Round(a.NetRegen - b.NetRegen), $"+{a.NetRegen - b.NetRegen:0}/s sustain", $"{a.NetRegen - b.NetRegen:0}/s sustain");
 
         // One number to rank: life % + damage %, but anything that breaks the build wins.
         double score = lifePct + dmgChange;
@@ -221,6 +234,7 @@ public static class GearCompare
         return bad is null ? "it breaks a requirement." : bad.Label switch
         {
             var l when l.EndsWith(" res") => $"{l} drops below cap.",
+            var l when l.EndsWith(" net regen /s") => $"{l[..^" net regen /s".Length]} would out-burn your regen.",
             var l => $"{l.Split(' ')[0]} requirement not met.",
         };
     }

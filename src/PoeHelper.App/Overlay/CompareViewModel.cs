@@ -195,7 +195,7 @@ public sealed class CompareViewModel : Observable
         DamageNote = sk is null
             ? "No active skill gem found, so damage only counts generic \"increased Damage\"."
             : $"Damage is scored for {sk.Describe()}{(sk.Auto ? ", detected from your links (pick another in Settings)" : ", picked in Settings")}. "
-              + (sk.IsMinion ? "Minions: minion damage, speed and gem levels."
+              + (SkillFormulas.For(sk) is { } f ? f.Summary : sk.IsMinion ? "Minions: minion damage, speed and gem levels."
                  : sk.IsDot ? "Increased × DoT multi × gem levels." : "Base × increased × speed × crit × gem levels.")
               + " A relative estimate, not a PoB DPS number.";
         Error = null;

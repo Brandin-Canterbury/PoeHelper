@@ -18,6 +18,20 @@ public partial class SettingsWindow : Window
     }
 
     const string AutoSkill = "Auto (most linked supports)";
+    string? _detectedSkill;
+    bool _hasSkills;
+
+    /// <summary>Says which skill is scored and whether it switches on a skill-specific formula.</summary>
+    void UpdateSkillHint()
+    {
+        var text = SkillPick.Text.Trim();
+        var scored = text == AutoSkill || text.Length == 0 ? _detectedSkill : text;
+        var hint = text == AutoSkill || text.Length == 0
+            ? (_hasSkills ? $"Auto picks {_detectedSkill ?? "nothing"} on this character." : "Your gems appear here once your character has loaded. You can also type a gem name.")
+            : "";
+        if (SkillFormulas.ForName(scored) is { } f) hint = (hint + " " + f.Summary).Trim();
+        SkillHint.Text = hint;
+    }
     readonly AppSettings _settings;
     readonly List<TrackedChoice> _tracked;
 
@@ -30,9 +44,11 @@ public partial class SettingsWindow : Window
         SkillPick.Items.Add(AutoSkill);
         foreach (var s in skills ?? []) SkillPick.Items.Add(s);
         SkillPick.Text = string.IsNullOrWhiteSpace(settings.MainSkill) ? AutoSkill : settings.MainSkill;
-        SkillHint.Text = skills is { Count: > 0 }
-            ? $"Auto picks {detectedSkill ?? "nothing"} on this character."
-            : "Your gems appear here once your character has loaded. You can also type a gem name.";
+        _detectedSkill = detectedSkill;
+        _hasSkills = skills is { Count: > 0 };
+        UpdateSkillHint();
+        SkillPick.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => UpdateSkillHint()));
+        SkillPick.SelectionChanged += (_, _) => Dispatcher.BeginInvoke(UpdateSkillHint);
         var on = TrackedStats.Resolve(settings.TrackedStats).Select(t => t.Key).ToHashSet();
         _tracked = TrackedStats.All.Select(t => new TrackedChoice(t.Key, t.Label, on.Contains(t.Key))).ToList();
         Tracked.ItemsSource = _tracked;
