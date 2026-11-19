@@ -189,7 +189,9 @@ public static class UpgradeFinder
         constraints.Add($"wearable now: level ≤ {build.Level}, attribute requirements met (checked on each result)");
         constraints.Add($"Instant Buyout, ≤ {budget.ToString("0.##", CultureInfo.InvariantCulture)} {(currency == "divine" ? "div" : "c")}");
 
-        var stats = new JsonArray { new JsonObject { ["type"] = "and", ["filters"] = andFilters } };
+        // The weight group goes first: GGG's sort key is "statgroup.<index>", and index 0 is the one the
+        // trade site itself uses (the user hit "Unknown sort key: statgroup.1" with it second).
+        var stats = new JsonArray();
         if (weightGroup.Count > 0)
             stats.Add(new JsonObject
             {
@@ -200,6 +202,7 @@ public static class UpgradeFinder
                     ["id"] = w.TradeId, ["value"] = new JsonObject { ["weight"] = w.Weight }, ["disabled"] = false,
                 }).ToArray()),
             });
+        stats.Add(new JsonObject { ["type"] = "and", ["filters"] = andFilters });
 
         var query = new JsonObject
         {
@@ -209,7 +212,7 @@ public static class UpgradeFinder
                 ["stats"] = stats,
                 ["filters"] = filters,
             },
-            ["sort"] = weightGroup.Count > 0 ? new JsonObject { ["statgroup.1"] = "desc" }
+            ["sort"] = weightGroup.Count > 0 ? new JsonObject { ["statgroup.0"] = "desc" }
                      : top is not null ? new JsonObject { [$"stat.{top.TradeId}"] = "desc" }
                      : new JsonObject { ["price"] = "asc" },
         };
@@ -241,6 +244,13 @@ public static class UpgradeFinder
             plan = Plan(build, slot, data, budget, currency, priority, weighted: false);
             search = await client.SearchAsync(league, plan.Query, ct);
             note = "Weighted search was refused (session expired?), so this used the single-stat search.";
+        }
+        catch (TradeApiException ex) when (plan.Weighted && ex.Message.Contains("sort key", StringComparison.OrdinalIgnoreCase))
+        {
+            // Keep the weighted filter but let GGG sort by price; results are ranked locally anyway.
+            plan.Query["sort"] = new JsonObject { ["price"] = "asc" };
+            search = await client.SearchAsync(league, plan.Query, ct);
+            note = "The trade site wouldn't sort by weighted value, so these are the cheapest items above your current one's value.";
         }
         var result = new UpgradeResult
         {

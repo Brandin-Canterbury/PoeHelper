@@ -33,10 +33,10 @@ public class UpgradePlanTests(DataFixture fx) : IClassFixture<DataFixture>
         Assert.True(plan.Weighted);
         var groups = plan.Query["query"]!["stats"]!.AsArray();
         Assert.Equal(2, groups.Count);
-        var weight = groups[1]!;
+        var weight = groups[0]!;
         Assert.Equal("weight", weight["type"]!.GetValue<string>());
         Assert.InRange(weight["filters"]!.AsArray().Count, 1, UpgradeFinder.MaxWeightedStats);
         Assert.True(weight["value"]!["min"]!.GetValue<double>() >= 50, weight.ToJsonString()); // at least the old ring's 50 life
-        Assert.Equal("desc", plan.Query["sort"]!["statgroup.1"]!.GetValue<string>());
+        Assert.Equal("desc", plan.Query["sort"]!["statgroup.0"]!.GetValue<string>());
     }
 }
