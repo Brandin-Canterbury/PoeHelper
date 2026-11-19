@@ -15,8 +15,11 @@ public abstract class SkillFormula
     public abstract string Summary { get; }
     public abstract bool Matches(SkillProfile skill);
 
-    /// <summary>The skill's damage index, or null to use the generic model.</summary>
-    public virtual (double Index, double Inc, double Multi)? Damage(SkillProfile skill, StatTotals t, double life, double levelFactor) => null;
+    /// <summary>
+    /// Runs before the damage calculation (like PoB's preDamageFunc) and may set the skill's base values,
+    /// e.g. "FireDot". Values come from Path of Building's gem data.
+    /// </summary>
+    public virtual void PreDamage(Dictionary<string, double> values, double life, double energyShield) { }
 
     /// <summary>Life lost per second to the skill itself (0 if none).</summary>
     public virtual double SelfDamagePerSecond(SkillProfile skill, double life, Resist fire) => 0;
@@ -29,7 +32,7 @@ public static class SkillFormulas
     public static SkillFormula? For(SkillProfile? skill) => skill is null ? null : All.FirstOrDefault(f => f.Matches(skill));
 
     public static SkillFormula? ForName(string? gemName) =>
-        string.IsNullOrWhiteSpace(gemName) ? null : All.FirstOrDefault(f => gemName.StartsWith(f.Name, StringComparison.OrdinalIgnoreCase));
+        string.IsNullOrWhiteSpace(gemName) ? null : All.FirstOrDefault(f => gemName.Trim().Equals(f.Name, StringComparison.OrdinalIgnoreCase));
 
     internal static double Percent(IEnumerable<string> mods, Regex rx, double fallback)
     {
@@ -43,31 +46,22 @@ public static class SkillFormulas
 }
 
 /// <summary>
-/// Righteous Fire: deals a % of maximum life as base fire damage per second and burns you for a % of maximum life,
-/// reduced by fire resistance. So life is damage, and fire res and regen are sustain.
+/// Righteous Fire: deals a % of maximum life and energy shield as base fire damage per second and burns you for a %
+/// of maximum life, reduced by fire resistance. So life is damage, and fire res and regen are sustain.
 /// </summary>
 public sealed partial class RighteousFireFormula : SkillFormula
 {
     public override string Name => "Righteous Fire";
     public override string Summary =>
-        "Righteous Fire formula on: damage = % of life × increased × DoT multi × gem levels; its burn is checked against your regen.";
-    public override bool Matches(SkillProfile skill) => skill.Name.StartsWith(Name, StringComparison.OrdinalIgnoreCase);
+        "Righteous Fire formula on: base burn = 70% of life + 70% of energy shield per second (Path of Building's), and RF's own burn is checked against your regen.";
+    public override bool Matches(SkillProfile skill) => skill.Name.Equals(Name, StringComparison.OrdinalIgnoreCase); // the variants have their own PoB code
 
-    public override (double Index, double Inc, double Multi)? Damage(SkillProfile skill, StatTotals t, double life, double levelFactor)
-    {
-        double pct = SkillFormulas.Percent(skill.Gem.Mods, DamageRx(), 70);
-        // A fire, burning, spell, elemental, area damage-over-time skill.
-        double inc = t.FireDamagePct + t.BurningDamagePct + t.SpellDamagePct + t.ElementalDamagePct + t.DamagePct
-                     + t.DamageOverTimePct + t.AreaDamagePct;
-        double multi = t.FireDotMulti + t.DotMulti;
-        return (pct / 100 * life * (1 + inc / 100) * (1 + multi / 100) * levelFactor, inc, multi);
-    }
+    /// <summary>PoB's preDamageFunc: FireDot = life × RFLifeMultiplier + energy shield × RFESMultiplier.</summary>
+    public override void PreDamage(Dictionary<string, double> values, double life, double energyShield) =>
+        values["FireDot"] = life * values.GetValueOrDefault("RFLifeMultiplier", 0.7) + energyShield * values.GetValueOrDefault("RFESMultiplier", 0.7);
 
     public override double SelfDamagePerSecond(SkillProfile skill, double life, Resist fire) =>
         life * SkillFormulas.Percent(skill.Gem.Mods, BurnRx(), 90) / 100 * (1 - fire.Effective / 100);
-
-    [GeneratedRegex(@"Deals ([\d.]+)% of your Maximum Life as Base Fire Damage per second")]
-    private static partial Regex DamageRx();
 
     [GeneratedRegex(@"You Burn for ([\d.]+)% of your Maximum Life per second")]
     private static partial Regex BurnRx();

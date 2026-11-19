@@ -76,7 +76,9 @@ public class SkillDamageTests
             new EquippedItem { Slot = "Helm", Name = "Helm", Gems = [Active("Blood Rage", "Spell, Duration")] });
         Assert.Equal("Cyclone", b.Skill!.Name); // its Movement tag doesn't make it a utility skill
         var s = BuildCalculator.Compute(b);
-        Assert.Equal(1.80, s.Speed, 3);                // weapon local attack speed isn't counted twice
+        // PoB data: Cyclone attacks at +200% rate, Melee Physical Damage Support gives 10% less attack speed;
+        // the weapon's local attack speed is already in its 1.80 and isn't counted twice.
+        Assert.Equal(1.80 * 3 * 0.9, s.Speed, 3);
         Assert.Equal(0, s.IncreasedDamage);           // nor its local % physical
         Assert.True(Gain(b, "Adds 10 to 20 Physical Damage to Attacks") > 5);
         Assert.True(Gain(b, "10% increased Attack Speed") > 5);

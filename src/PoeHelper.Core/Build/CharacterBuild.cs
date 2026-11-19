@@ -7,8 +7,9 @@ namespace PoeHelper.Core.Build;
 
 /// <param name="Tags">The gem's tag line, e.g. "Spell, AoE, Fire".</param>
 /// <param name="Group">The socket group (link group) it sits in on its item.</param>
+/// <param name="Quality">Gem quality in %.</param>
 public sealed record GemInfo(string Name, int Level, int Str, int Dex, int Int, IReadOnlyList<string> Mods, bool Support,
-    IReadOnlyList<string>? Tags = null, int Group = 0);
+    IReadOnlyList<string>? Tags = null, int Group = 0, int Quality = 0);
 
 /// <summary>One equipped item, reduced to what the model needs.</summary>
 public sealed class EquippedItem
@@ -145,12 +146,14 @@ public sealed partial class CharacterBuild
             var (gs, gd, gi) = Requirements(go);
             var level = go["properties"]?.AsArray().FirstOrDefault(p => p?["name"]?.GetValue<string>() == "Level")
                 ?["values"]?[0]?[0]?.GetValue<string>() ?? "0";
+            var quality = go["properties"]?.AsArray().FirstOrDefault(p => p?["name"]?.GetValue<string>() == "Quality")
+                ?["values"]?[0]?[0]?.GetValue<string>() ?? "0";
             var tags = (go["properties"]?.AsArray().FirstOrDefault()?["name"]?.GetValue<string>() ?? "")
                 .Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
             int socket = go["socket"]?.GetValue<int>() ?? -1;
             int group = sockets is not null && socket >= 0 && socket < sockets.Count ? sockets[socket]?["group"]?.GetValue<int>() ?? 0 : 0;
             gems.Add(new GemInfo(go["typeLine"]?.GetValue<string>() ?? "?", ItemParser.FirstInt(level), gs, gd, gi,
-                ModLines(go), go["support"]?.GetValue<bool>() == true, tags, group));
+                ModLines(go), go["support"]?.GetValue<bool>() == true, tags, group, ItemParser.FirstInt(quality)));
         }
         string name = it["name"]?.GetValue<string>() is { Length: > 0 } n ? $"{n} {it["typeLine"]}" : it["typeLine"]?.GetValue<string>() ?? "?";
         return new EquippedItem

@@ -66,22 +66,25 @@ Hover any weapon, armour piece, ring, amulet or belt and press **Alt+D**. The pa
 
 Pick the skill in **Settings → Skill to upgrade**. On **Auto** it's the active gem with the most supports linked to it, skipping auras, heralds, curses, marks, warcries, guards, golems, banners and blink/travel skills. The compare panel always says which skill it scored and how.
 
-Only the stats that apply to that skill's tags count. A cold spell ignores "increased Physical Damage", for example:
+Damage comes from **Path of Building's gem data** (bundled; see Credits), worked out the way Path of Building does it:
 
-| Skill | Damage index |
+| | How it's counted |
 |---|---|
-| **Damage over time** (base damage per second, or linked to Swift Affliction, Burning Damage, Deadly/Unbound Ailments, Decay or Cruelty) | increased × the matching DoT multiplier × gem levels |
-| **Attacks** | weapon damage (from its property block, so local mods aren't counted twice) + flat added damage, × increased × attack speed × crit × gem levels |
-| **Spells** | an assumed base for the gem's level + flat added damage, × increased × cast speed × crit × gem levels |
-| **Minions** | minion damage × minion speed × gem levels |
+| **Hits** | per damage type: (the gem's base damage at its level, or for attacks your weapon × the gem's damage multiplier) + flat added damage × the gem's effectiveness, × increased × more, × casts or attacks per second (the gem's cast time, the weapon's speed and the gem's attack-rate bonus) × crit |
+| **Damage over time** | the gem's base damage per second × increased × more × (1 + DoT multiplier) |
+| **"More"** | from the gem itself and every support linked to it (e.g. Elemental Focus 34% more elemental damage at level 20), with each modifier's flags respected |
+| **Gem level** | your gem's level plus socketed and global +levels, looked up in the level table |
+| **Quality** | gem quality bonuses from the data |
 
-**Skill-specific formulas.** Some skills have mechanics the tag model can't see. These formulas only switch on when that skill is the one being scored (picked in Settings, or Auto's pick); Settings says when one is active:
+Path of Building's rules come through too. For example, a spell's own damage over time isn't spell damage: "increased Spell Damage" and Controlled Destruction don't boost Righteous Fire's burn. Skills missing from the data, and minion skills, use a simpler tag-based model.
+
+**Skill-specific formulas.** A few skills have their own code in Path of Building. They're ported one by one, and each switches on only when that skill is the one being scored (picked in Settings, or Auto's pick). Settings says when one is active:
 
 | Skill | Formula |
 |---|---|
-| **Righteous Fire** | damage = % of life × increased × DoT multiplier × gem levels, so life counts as damage. Its burn (reduced by fire res) is compared with your regen: a "Righteous Fire net regen /s" row, and **Don't swap** if an item tips you into net degen. |
+| **Righteous Fire** | base burn = 70% of life + 70% of energy shield per second. RF's burn on you (reduced by fire res) is compared with your regen: a "Righteous Fire net regen /s" row, and **Don't swap** if an item tips you into net degen. The variants (Arcane Devotion, Vaal) aren't ported yet. |
 
-Gem levels count +10% each: socketed ones on the skill's own item, and global ones like "+1 to Level of all Minion Skill Gems". When "skill damage" is tracked, Find upgrade's damage weights come from the same model, so a minion build is shown minion stats, a bow build attack stats, and so on. Nothing is specific to one skill.
+When "skill damage" is tracked, Find upgrade's damage weights come from the same model, so a minion build is shown minion stats, a bow build attack stats, and so on.
 
 The verdict is one line: Upgrade, Downgrade, Sidegrade or **Don't swap**. "Don't swap" means the item breaks something:
 - your main skill's links, or gem sockets;
@@ -91,7 +94,7 @@ The verdict is one line: Upgrade, Downgrade, Sidegrade or **Don't swap**. "Don't
 
 Rings show a tab for each ring slot.
 
-What's **not** modelled: conditional mods ("while on Low Life", flasks, charges), damage conversion, more multipliers from support gems, ailments from hits, local armour defences, and full PoB damage. Gear is fetched from your public profile when the app starts. After changing gear, click **Reload character**.
+What's **not** modelled: conditional mods ("while on Low Life", flasks, charges, "against bleeding enemies"), damage conversion, ailments from hits, enemy resistances, minion damage from data, and Path of Building's per-skill code beyond the formulas above. The damage number is for comparing gear, not a full Path of Building DPS. Gear is fetched from your public profile when the app starts. After changing gear, click **Reload character**.
 
 ## Find upgrade (button on the compare panel)
 
@@ -161,3 +164,11 @@ src\PoeHelper.App\bin\Debug\net10.0-windows\PoeHelper.exe --upgrade <item.txt> <
 ```
 
 Character data comes from the public character API (`/character-window/get-items`, `get-passive-skills`), and node stats from GGG's [skilltree-export](https://github.com/grindinggear/skilltree-export), cached for a week. Other data comes from the official trade API (`/api/trade/search`, `/fetch`, `/exchange`, `/data/*`). The static data is cached in `%LOCALAPPDATA%\PoeHelper\cache` for a day. Settings and the log are in `%APPDATA%\PoeHelper`.
+
+## Credits
+
+Gem data (base damage, levels, support multipliers) is imported from [Path of Building Community](https://github.com/PathOfBuildingCommunity/PathOfBuilding), MIT licence, © 2016 David Gowor and contributors; stat data © Grinding Gear Games. The bundled copy is `src/PoeHelper.Core/Data/skills.json`. To refresh it for a new league, clone Path of Building and run:
+
+```
+python -I tools/pob-import/import_pob.py <PathOfBuilding checkout> src/PoeHelper.Core/Data/skills.json
+```

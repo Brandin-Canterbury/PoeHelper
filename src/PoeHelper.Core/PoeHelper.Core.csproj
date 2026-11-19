@@ -6,4 +6,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <!-- Gem data from Path of Building Community (MIT); regenerate with tools/pob-import/import_pob.py -->
+    <EmbeddedResource Include="Data\skills.json" LogicalName="PoeHelper.Core.Data.skills.json" />
+  </ItemGroup>
+
 </Project>

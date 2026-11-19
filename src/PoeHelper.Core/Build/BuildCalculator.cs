@@ -125,7 +125,7 @@ public static partial class BuildCalculator
 
         var skill = b.Skill;
         var formula = SkillFormulas.For(skill);
-        var dmg = Damage(b, skill, t, life);
+        var dmg = Damage(b, skill, t, life, es);
         double selfDamage = formula is not null && skill is not null ? formula.SelfDamagePerSecond(skill, life, fire) : 0;
 
         return new BuildStats
@@ -152,9 +152,7 @@ public static partial class BuildCalculator
     /// </summary>
     static double SpellBase(int level) => 10 + 9 * Math.Max(1, level);
 
-    sealed record DamageResult(double Index, double Inc, double Multi, double Speed, double Crit, double Levels);
-
-    static DamageResult Damage(CharacterBuild b, SkillProfile? skill, StatTotals t, double life)
+    static DamageResult Damage(CharacterBuild b, SkillProfile? skill, StatTotals t, double life, double es)
     {
         if (skill is null)
             return new(1 + t.DamagePct / 100, t.DamagePct, 0, 1, 0, 0);
@@ -173,9 +171,9 @@ public static partial class BuildCalculator
             if (kind.Length == 0 || KindMatches(skill, kind)) levels += lv;
         double levelFactor = 1 + PerGemLevel * levels;
 
-        // Skills with their own mechanics (only the scored skill's formula is ever used).
-        if (SkillFormulas.For(skill)?.Damage(skill, t, life, levelFactor) is { } own)
-            return new(own.Index, own.Inc, own.Multi, 1, 0, levels);
+        // Path of Building's gem data when the gem is known; the generic tag model below otherwise (and for minions).
+        if (SkillDamage.Compute(b, skill, t, life, es, levels) is { } data)
+            return data;
 
         var types = skill.Elements;
         bool ele = types.Any(e => e is "Fire" or "Cold" or "Lightning");
@@ -206,9 +204,9 @@ public static partial class BuildCalculator
         var weapon = b.Items.GetValueOrDefault("Weapon");
         if (skill.IsAttack && weapon is not null && IsWeapon(weapon))
         {
-            baseDmg = AvgRange(weapon.Props.GetValueOrDefault("Physical Damage"))
-                      + AvgRange(weapon.Props.GetValueOrDefault("Elemental Damage"))
-                      + AvgRange(weapon.Props.GetValueOrDefault("Chaos Damage"));
+            baseDmg = SkillDamage.AvgRange(weapon.Props.GetValueOrDefault("Physical Damage"))
+                      + SkillDamage.AvgRange(weapon.Props.GetValueOrDefault("Elemental Damage"))
+                      + SkillDamage.AvgRange(weapon.Props.GetValueOrDefault("Chaos Damage"));
             speed = Items.ItemParser.Numbers(weapon.Props.GetValueOrDefault("Attacks per Second") ?? "1").DefaultIfEmpty(1).First();
             baseCrit = Items.ItemParser.Numbers(weapon.Props.GetValueOrDefault("Critical Strike Chance") ?? "5").DefaultIfEmpty(5).First();
         }
@@ -235,20 +233,6 @@ public static partial class BuildCalculator
             "Elemental" => s.Has("Fire") || s.Has("Cold") || s.Has("Lightning"),
             _ => s.Has(word),
         });
-
-    /// <summary>"50-76" → 63; "10-20, 5-60" → 47.5 (sum of averages).</summary>
-    static double AvgRange(string? v)
-    {
-        if (string.IsNullOrEmpty(v)) return 0;
-        double total = 0;
-        foreach (var part in v.Split(','))
-        {
-            var n = Items.ItemParser.Numbers(part.Replace('-', ' '));
-            if (n.Count >= 2) total += (n[0] + n[1]) / 2;
-            else if (n.Count == 1) total += n[0];
-        }
-        return total;
-    }
 
     [GeneratedRegex(@"^(?:Adds # to # \w+ Damage|#% increased Physical Damage|#% increased Attack Speed|#% increased Critical Strike Chance|\+# to Accuracy Rating|#% increased Accuracy Rating)$")]
     private static partial Regex LocalWeaponRx();

@@ -88,7 +88,9 @@ public class UpgradeRankingTests(DataFixture fx) : IClassFixture<DataFixture>
 
         var dmg = UpgradeFinder.Plan(Build("+50 to maximum Life"), "Ring", fx.Data, 2, "divine", Track(false, TrackedStats.Damage), weighted: true);
         Assert.Contains(dmg.Weights, w => w.Label == "#% increased Cold Damage");
-        Assert.DoesNotContain(dmg.Weights, w => w.Label.Contains("Fire") || w.Label.Contains("Attack") || w.TradeId == "pseudo.pseudo_total_life");
+        // Flat fire added to spells does hit with Ice Nova (any spell), but fire/attack increases and life don't help it.
+        Assert.Contains(dmg.Weights, w => w.Label == "Adds # to # Fire Damage to Spells");
+        Assert.DoesNotContain(dmg.Weights, w => w.Label is "#% increased Fire Damage" or "#% increased Attack Damage" || w.TradeId == "pseudo.pseudo_total_life");
 
         var chaos = UpgradeFinder.Plan(Build("+50 to maximum Life"), "Ring", fx.Data, 2, "divine", Track(true, "life"));
         Assert.Equal("stat.pseudo.pseudo_total_chaos_resistance", chaos.Query["sort"]!.AsObject().First().Key);
