@@ -31,6 +31,7 @@
                 <TextBlock />
             </DockPanel>
 
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
             <StackPanel>
                 <TextBlock Text="{Binding Error}" Foreground="#E07A6A" TextWrapping="Wrap" Margin="0,10,0,0"
                            Visibility="{Binding HasError, Converter={StaticResource BoolToVis}}" />
@@ -59,7 +60,9 @@
                 </ItemsControl>
 
                 <StackPanel Visibility="{Binding ResultVisible, Converter={StaticResource BoolToVis}}">
-                    <TextBlock Text="{Binding CurrentItem}" Foreground="{StaticResource Muted}" Margin="0,8,0,0" TextTrimming="CharacterEllipsis" />
+                    <Button Content="{Binding BackLabel}" Style="{StaticResource FlatButton}" HorizontalAlignment="Left" Margin="0,8,0,0" Click="OnBackFromDetail"
+                            Visibility="{Binding InDetail, Converter={StaticResource BoolToVis}}" />
+                    <TextBlock Text="{Binding CurrentItem}" Foreground="{StaticResource Muted}" Margin="0,8,0,0" TextWrapping="Wrap" />
                     <TextBlock Text="{Binding Verdict}" Foreground="{Binding VerdictBrush}" FontSize="16" FontWeight="Bold" TextWrapping="Wrap" Margin="0,4,0,0" />
 
                     <ItemsControl ItemsSource="{Binding Warnings}" Margin="0,6,0,0">
@@ -105,6 +108,26 @@
                             </DataTemplate>
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
+                    <!-- Upgrade detail: every mod on the item, and every mod you give up -->
+                    <Grid Margin="0,8,0,0" Visibility="{Binding InDetail, Converter={StaticResource BoolToVis}}">
+                        <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="10" /><ColumnDefinition Width="*" /></Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="THE ITEM'S MODS" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="SemiBold" />
+                            <ItemsControl ItemsSource="{Binding DetailMods}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate><TextBlock Text="{Binding Text}" Foreground="{Binding Brush}" FontSize="12" TextWrapping="Wrap" /></DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="{Binding LosesHeader}" Foreground="{StaticResource Muted}" FontSize="10" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                            <ItemsControl ItemsSource="{Binding DetailLoses}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate><TextBlock Text="{Binding Text}" Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" /></DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
+                        </StackPanel>
+                    </Grid>
                     <TextBlock Text="Damage is a relative estimate (life × increased × DoT multi), not a PoB DPS number."
                                Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0" />
 
@@ -123,7 +146,8 @@
                             </StackPanel>
                             <TextBlock Text="{Binding UpgradeStatus}" Foreground="{StaticResource Muted}" TextWrapping="Wrap" Margin="0,6,0,0"
                                        Visibility="{Binding HasUpgradeStatus, Converter={StaticResource BoolToVis}}" />
-                            <ItemsControl ItemsSource="{Binding UpgradeConstraints}" Margin="0,2,0,0">
+                            <ItemsControl ItemsSource="{Binding UpgradeConstraints}" Margin="0,2,0,0"
+                                          Visibility="{Binding InDetail, Converter={StaticResource InverseBoolToVis}}">
                                 <ItemsControl.ItemTemplate>
                                     <DataTemplate>
                                         <TextBlock Text="{Binding StringFormat='✓ {0}'}" Foreground="{StaticResource Muted}" FontSize="11" TextWrapping="Wrap" />
@@ -135,7 +159,8 @@
                                 <ItemsControl ItemsSource="{Binding Upgrades}" AlternationCount="2">
                                     <ItemsControl.ItemTemplate>
                                         <DataTemplate>
-                                            <Border x:Name="row" Padding="4,3">
+                                            <Border x:Name="row" Padding="4,3" Background="Transparent" Cursor="Hand" BorderThickness="2,0,0,0" BorderBrush="Transparent"
+                                                    MouseLeftButtonUp="OnUpgradeRowClick" ToolTip="Click to see everything this item changes">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="58" /><ColumnDefinition Width="*" /><ColumnDefinition Width="30" /><ColumnDefinition Width="Auto" />
@@ -160,6 +185,13 @@
                                                 <Trigger Property="ItemsControl.AlternationIndex" Value="1">
                                                     <Setter TargetName="row" Property="Background" Value="{StaticResource RowAlt}" />
                                                 </Trigger>
+                                                <Trigger SourceName="row" Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="row" Property="Background" Value="{StaticResource ControlHover}" />
+                                                </Trigger>
+                                                <DataTrigger Binding="{Binding Selected}" Value="True">
+                                                    <Setter TargetName="row" Property="BorderBrush" Value="{StaticResource Gold}" />
+                                                    <Setter TargetName="row" Property="Background" Value="{StaticResource ControlHover}" />
+                                                </DataTrigger>
                                             </DataTemplate.Triggers>
                                         </DataTemplate>
                                     </ItemsControl.ItemTemplate>
@@ -169,6 +201,7 @@
                     </Border>
                 </StackPanel>
             </StackPanel>
+            </ScrollViewer>
         </DockPanel>
     </Border>
 </Window>

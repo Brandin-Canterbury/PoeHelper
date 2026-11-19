@@ -72,6 +72,7 @@ public sealed partial class StatTotals
             case "#% increased Damage": DamagePct += v; return true;
             case "Regenerate #% of Life per second": LifeRegenPct += v; return true;
             case "Regenerate # Life per second": LifeRegenFlat += v; return true;
+            case "Lose # Life per second": LifeRegenFlat -= v; return true;
             case "#% increased Movement Speed": MovementSpeed += v; return true;
             case "+# to Level of Socketed Fire Gems": GemLevelsFire += v; return true;
             case "+# to Level of Socketed Gems": GemLevelsAll += v; return true;

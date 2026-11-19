@@ -31,8 +31,20 @@ public sealed class SlotTab(SlotComparison c) : Observable
     public bool Selected { get => _selected; set => Set(ref _selected, value); }
 }
 
-public sealed class UpgradeRow
+public sealed class ModLine(string text)
 {
+    public string Text => text;
+    /// <summary>Red for anything that takes away: negative values and "reduced".</summary>
+    public Brush Brush => System.Text.RegularExpressions.Regex.IsMatch(text, @"(^|\s)-\d| reduced |^Cannot |^Lose |against you|^You take ")
+        ? CompareRowView.SentimentBrush(Sentiment.Bad) : TextBrush;
+    static readonly Brush TextBrush = new SolidColorBrush(Color.FromRgb(0xe8, 0xe0, 0xd2));
+}
+
+public sealed class UpgradeRow : Observable
+{
+    bool _selected;
+    public bool Selected { get => _selected; set => Set(ref _selected, value); }
+    public required PoeHelper.Core.Build.UpgradeCandidate Candidate { get; init; }
     public required string Price { get; init; }
     public required string Name { get; init; }
     public required string Gains { get; init; }
@@ -102,13 +114,14 @@ public sealed class CompareViewModel : Observable
                 Age = age.TotalDays >= 1 ? $"{age.TotalDays:0}d" : $"{Math.Max(0, age.TotalHours):0}h",
                 Url = c.Url,
                 Whisper = c.Whisper,
+                Candidate = c,
             });
         }
         UpgradeUrl = r.SearchUrl;
         UpgradeStatus = r.Candidates.Count == 0
             ? (r.Total == 0 ? "Nothing listed meets the constraints within budget. Raise the budget or try the other priority."
                             : $"{r.Total} listed, but none of the ones checked beat your current item without breaking something.")
-            : $"Best {Math.Min(10, r.Candidates.Count)} of {(r.Total >= 10000 ? "10,000+" : r.Total.ToString("N0"))} listed, ranked by life + damage for your build"
+            : $"Click a result to see everything it changes. Best {Math.Min(10, r.Candidates.Count)} of {(r.Total >= 10000 ? "10,000+" : r.Total.ToString("N0"))} listed, ranked by {(r.Plan.Priority == PoeHelper.Core.Build.UpgradePriority.Life ? "life gained (none lose life)" : "damage gained")}"
               + (r.Rejected > 0 ? $" ({r.Rejected} rejected: they'd break resists, sockets or requirements)" : "")
               + ". Trade ↗ opens that one listing; Whisper copies the buy message."
               + (r.Plan.Weighted ? " (Weighted search: logged in.)" : "")
@@ -141,6 +154,39 @@ public sealed class CompareViewModel : Observable
     public ObservableCollection<SlotTab> Tabs { get; } = [];
     public ObservableCollection<CompareRowView> Rows { get; } = [];
     public ObservableCollection<string> Warnings { get; } = [];
+    public ObservableCollection<ModLine> DetailMods { get; } = [];
+    public ObservableCollection<ModLine> DetailLoses { get; } = [];
+
+    // ---- upgrade detail: the stat rows show "if you buy this" instead of the hovered item
+    UpgradeRow? _detail;
+    public UpgradeRow? Detail { get => _detail; private set { Set(ref _detail, value); Raise(nameof(InDetail)); Raise(nameof(BackLabel)); } }
+    public bool InDetail => Detail is not null;
+    public string BackLabel => $"← Back to {Item?.DisplayName ?? "hovered item"}";
+    public string LosesHeader { get; private set; } = "";
+
+    public void ShowUpgradeDetail(UpgradeRow row)
+    {
+        foreach (var u in Upgrades) u.Selected = u == row;
+        var c = row.Candidate.Compare;
+        Detail = row;
+        ShowComparison(c, $"If you buy {c.Candidate?.Name} for {row.Price} and wear it as your {c.SlotLabel}"
+                          + (c.Current is null ? ":" : $", replacing {c.Current.Name}:"));
+        DetailMods.Clear();
+        DetailLoses.Clear();
+        foreach (var m in c.Candidate?.Mods ?? []) DetailMods.Add(new ModLine(m));
+        foreach (var m in c.Current?.Mods ?? []) DetailLoses.Add(new ModLine(m));
+        LosesHeader = c.Current is null ? "" : $"YOU LOSE ({c.Current.Name})";
+        Raise(nameof(LosesHeader));
+    }
+
+    public void BackFromDetail()
+    {
+        foreach (var u in Upgrades) u.Selected = false;
+        Detail = null;
+        DetailMods.Clear();
+        DetailLoses.Clear();
+        if (Selected is { } s) ShowComparison(s, s.Current is null ? $"Your {s.SlotLabel}: (empty)" : $"Your {s.SlotLabel}: {s.Current.Name}");
+    }
 
     public void Show(ParsedItem item, IReadOnlyList<SlotComparison> comparisons, CharacterBuild build)
     {
@@ -167,7 +213,16 @@ public sealed class CompareViewModel : Observable
         foreach (var t in Tabs) t.Selected = t == tab;
         var c = tab.Comparison;
         Selected = c;
-        CurrentItem = c.Current is null ? $"Your {c.SlotLabel}: (empty)" : $"Your {c.SlotLabel}: {c.Current.Name}";
+        Detail = null;
+        DetailMods.Clear();
+        DetailLoses.Clear();
+        ShowComparison(c, c.Current is null ? $"Your {c.SlotLabel}: (empty)" : $"Your {c.SlotLabel}: {c.Current.Name}");
+        ClearUpgrades();
+    }
+
+    void ShowComparison(SlotComparison c, string header)
+    {
+        CurrentItem = header;
         Verdict = c.Verdict;
         VerdictBrush = c.Overall switch
         {
@@ -178,7 +233,6 @@ public sealed class CompareViewModel : Observable
         };
         Rows.Clear();
         foreach (var r in c.Rows) Rows.Add(new CompareRowView(r));
-        ClearUpgrades();
         Warnings.Clear();
         foreach (var w in c.Warnings) Warnings.Add(w);
     }

@@ -280,6 +280,13 @@ public sealed class AppHost : IDisposable, IMenuActions
         await Task.Delay(300);
         _compareOverlay.UpdateLayout();
         OverlaySnapshot.Save(_compareOverlay, pngPath);
+        if (runUpgrade && _compareOverlay.Model.Upgrades.FirstOrDefault() is { } first)
+        {
+            _compareOverlay.Model.ShowUpgradeDetail(first);
+            await Task.Delay(300);
+            _compareOverlay.UpdateLayout();
+            OverlaySnapshot.Save(_compareOverlay, Path.ChangeExtension(pngPath, null) + "-detail.png");
+        }
         _compareOverlay.Close();
     }
 

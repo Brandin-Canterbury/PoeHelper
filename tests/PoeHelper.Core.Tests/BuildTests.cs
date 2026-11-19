@@ -108,4 +108,12 @@ public class BuildTests
         Assert.Equal("Allocates Golem's Blood", CharacterBuild.StripMarkup("Allocates [golem's_blood1088|Golem's Blood]"));
         Assert.Equal("Immune to Ignite", CharacterBuild.StripMarkup("Immune to [Ignite]"));
     }
+
+    [Fact]
+    public void Life_degen_mods_and_negative_resists_count_against_you()
+    {
+        var t = PoeHelper.Core.Stats.StatTotals.FromTexts(["Lose 64 Life per second", "Regenerate 100 Life per second", "-66% to Cold Resistance"]);
+        Assert.Equal(36, t.LifeRegenFlat);
+        Assert.Equal(-66, t.Cold);
+    }
 }

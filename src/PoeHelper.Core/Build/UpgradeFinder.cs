@@ -272,13 +272,27 @@ public static class UpgradeFinder
                              || (item["baseType"]?.GetValue<string>() ?? "") is var b && (b.Contains("Staff") || b.EndsWith("Bow"));
             var cmp = GearCompare.CompareEquipped(build, slot, candidate, twoHanded, before);
             if (cmp.Overall == Sentiment.Bad) { result.Rejected++; continue; }
+            // "Prioritise life" means life must not go down.
+            if (plan.Priority == UpgradePriority.Life && cmp.After.Life < cmp.Before.Life) { result.Rejected++; continue; }
+            // Rings: the result is for the ring being searched. Say so if the other ring would break something.
+            if (slot is "Ring" or "Ring2" && build.Items.ContainsKey(slot == "Ring" ? "Ring2" : "Ring"))
+            {
+                var other = GearCompare.CompareEquipped(build, slot == "Ring" ? "Ring2" : "Ring", candidate, false, before);
+                if (other.Overall == Sentiment.Bad)
+                    cmp.Warnings.Insert(0, $"Only for your {cmp.SlotLabel}. In place of your {other.SlotLabel} ({other.Current?.Name}): " +
+                                           string.Join(" ", other.Warnings.Where(w => !w.StartsWith("Only for"))));
+            }
             result.Candidates.Add(new UpgradeCandidate(listing, cmp, r["listing"]?["whisper"]?.GetValue<string>(),
                 ListingUrl(plan.Query, league, r["listing"]?["account"]?["name"]?.GetValue<string>(), item["baseType"]?.GetValue<string>())));
         }
         // Best first; ties go to the cheaper listing.
+        double Key(UpgradeCandidate u) => plan.Priority == UpgradePriority.Life
+            ? u.Compare.After.Life - u.Compare.Before.Life
+            : u.Compare.Before.RfDamageIndex > 0 ? u.Compare.After.RfDamageIndex / u.Compare.Before.RfDamageIndex : 0;
         result.Candidates.Sort((x, y) =>
         {
-            int c = y.Compare.Score.CompareTo(x.Compare.Score);
+            int c = Key(y).CompareTo(Key(x));
+            if (c == 0) c = y.Compare.Score.CompareTo(x.Compare.Score);
             return c != 0 ? c : (x.Listing.Chaos ?? double.MaxValue).CompareTo(y.Listing.Chaos ?? double.MaxValue);
         });
         return result;

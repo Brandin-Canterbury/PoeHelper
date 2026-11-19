@@ -44,6 +44,9 @@ public static class GearCompare
         };
     }
 
+    /// <summary>Overcap below this after a resist drop gets a warning: one curse or map mod uncaps it.</summary>
+    public const double ThinOvercap = 15;
+
     public static string SlotLabel(string slot) => slot switch
     {
         "BodyArmour" => "body armour",
@@ -123,6 +126,8 @@ public static class GearCompare
             c.Rows.Add(new CompareRow(name, Fmt(rb), Fmt(ra), d == 0 ? "" : $"{d:+0;-0}", s));
             if (fellUnder)
                 c.Warnings.Add($"{name} drops below cap: {ra.Effective:0}% of {ra.Max:0}% ({ra.Total - ra.Max:0}).");
+            else if (!name.StartsWith("Chaos") && d < 0 && ra.Capped && ra.Overcap < ThinOvercap)
+                c.Warnings.Add($"{name} stays capped, but only {ra.Overcap:0}% over ({rb.Overcap:0}% now). A curse or a map mod that lowers res will uncap it.");
         }
 
         // Attributes against gem / gear requirements.
