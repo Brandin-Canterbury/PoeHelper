@@ -195,9 +195,13 @@ public sealed class CompareViewModel : Observable
         DamageNote = sk is null
             ? "No active skill gem found, so damage only counts generic \"increased Damage\"."
             : $"Damage is scored for {sk.Describe()}{(sk.Auto ? ", detected from your links (pick another in Settings)" : ", picked in Settings")}. "
-              + (!sk.IsMinion && PoeHelper.Core.Data.SkillData.Instance.Get(sk.Name) is { Support: false }
+              + (PoeHelper.Core.Data.SkillData.Instance.Get(sk.Name) is { Support: false, Minions.Count: > 0 } mg
+                  && PoeHelper.Core.Data.SkillData.Instance.Minions.GetValueOrDefault(mg.Minions[0]) is { } minion
+                  ? $"Uses Path of Building's minion data: {BuildCalculator.Compute(build).MinionCount} × {minion.Name}, its level and damage from the gem, "
+                    + "its own attack or spell, your linked supports and every \"Minions …\" stat. "
+                  : !sk.IsMinion && PoeHelper.Core.Data.SkillData.Instance.Get(sk.Name) is { Support: false }
                   ? "Uses Path of Building's gem data: base damage per level, cast speed, crit, and your linked supports' multipliers. "
-                  : sk.IsMinion ? "Minions: minion damage, speed and gem levels (generic model). "
+                  : sk.IsMinion ? "Minions not in Path of Building's minion data (e.g. spectres): minion damage, speed and gem levels only. "
                   : "Not in Path of Building's data, so a generic model: increased × multipliers × speed × gem levels. ")
               + (SkillFormulas.For(sk) is { } f ? f.Summary + " " : "")
               + "Relative: no enemy resists, conversion or conditional mods.";

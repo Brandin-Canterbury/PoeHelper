@@ -52,6 +52,8 @@ public sealed class BuildStats
     public double MovementSpeed { get; init; }
     /// <summary>Gem levels that reach the main skill (socketed + global).</summary>
     public double SkillGemLevels { get; init; }
+    /// <summary>Minion gems: how many minions the damage counts (from the gem and supports).</summary>
+    public int MinionCount { get; init; } = 1;
     public StatTotals Totals { get; init; } = new();
 }
 
@@ -137,7 +139,7 @@ public static partial class BuildCalculator
             IntNeed = Need(intl, g => g.Int, i => i.ReqInt),
             LifeRegen = regen, EnergyShield = es, SkillSelfDamage = selfDamage, Formula = formula,
             DamageMulti = dmg.Multi, IncreasedDamage = dmg.Inc, DamageIndex = dmg.Index, Skill = skill,
-            Speed = dmg.Speed, CritChance = dmg.Crit, SkillGemLevels = dmg.Levels,
+            Speed = dmg.Speed, CritChance = dmg.Crit, SkillGemLevels = dmg.Levels, MinionCount = dmg.Count,
             MovementSpeed = t.MovementSpeed,
             Totals = t,
         };

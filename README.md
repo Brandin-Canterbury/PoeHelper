@@ -75,8 +75,9 @@ Damage comes from **Path of Building's gem data** (bundled; see Credits), worked
 | **"More"** | from the gem itself and every support linked to it (e.g. Elemental Focus 34% more elemental damage at level 20), with each modifier's flags respected |
 | **Gem level** | your gem's level plus socketed and global +levels, looked up in the level table |
 | **Quality** | gem quality bonuses from the data |
+| **Minions** | the gem sets the minion's level (Raise Zombie 20 → level 70 zombies) and how many there are. Each minion hits from Path of Building's ally damage table × its own damage multiplier, with its own attack or spell. Your linked supports apply to it, and so does every "Minions …" stat (gear, tree, Minion Damage Support). The result is × the number of minions. |
 
-Path of Building's rules come through too. For example, a spell's own damage over time isn't spell damage: "increased Spell Damage" and Controlled Destruction don't boost Righteous Fire's burn. Skills missing from the data, and minion skills, use a simpler tag-based model.
+Path of Building's rules come through too. For example, a spell's own damage over time isn't spell damage: "increased Spell Damage" and Controlled Destruction don't boost Righteous Fire's burn. Skills missing from the data use a simpler tag-based model, as do spectres (which spectre you raised isn't known). For gems that summon several kinds of minion (Summon Skeletons), the first kind is scored, as Path of Building does by default.
 
 **Skill-specific formulas.** A few skills have their own code in Path of Building. They're ported one by one, and each switches on only when that skill is the one being scored (picked in Settings, or Auto's pick). Settings says when one is active:
 
@@ -94,7 +95,7 @@ The verdict is one line: Upgrade, Downgrade, Sidegrade or **Don't swap**. "Don't
 
 Rings show a tab for each ring slot.
 
-What's **not** modelled: conditional mods ("while on Low Life", flasks, charges, "against bleeding enemies"), damage conversion, ailments from hits, enemy resistances, minion damage from data, and Path of Building's per-skill code beyond the formulas above. The damage number is for comparing gear, not a full Path of Building DPS. Gear is fetched from your public profile when the app starts. After changing gear, click **Reload character**.
+What's **not** modelled: conditional mods ("while on Low Life", flasks, charges, "against bleeding enemies"), damage conversion, ailments from hits, enemy resistances, minions' damage conversion (e.g. Raging Spirits' fire), "+1 to maximum number of …" minion gear, and Path of Building's per-skill code beyond the formulas above. The damage number is for comparing gear, not a full Path of Building DPS. Gear is fetched from your public profile when the app starts. After changing gear, click **Reload character**.
 
 ## Find upgrade (button on the compare panel)
 

@@ -172,6 +172,7 @@ public static class GearCompare
         AddIfChanged(c, "Energy shield", b.EnergyShield, a.EnergyShield, "");
         AddIfChanged(c, "Movement speed", b.MovementSpeed, a.MovementSpeed, "%");
         AddIfChanged(c, "+Skill gem levels", b.SkillGemLevels, a.SkillGemLevels, "");
+        AddIfChanged(c, "Minions", b.MinionCount, a.MinionCount, "");
 
         // Sockets and links: losing the main skill's links is the worst outcome.
         if (current is { Gems.Count: > 0 })

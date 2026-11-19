@@ -254,17 +254,25 @@ KEEP_MODS = {
     "PhysicalMin", "PhysicalMax", "FireMin", "FireMax", "ColdMin", "ColdMax", "LightningMin", "LightningMax", "ChaosMin", "ChaosMax",
     "DamageEffectiveness",
 }
+LIMIT_MOD = re.compile(r"^Active\w+Limit$")
 # Conditions the helper can evaluate or treats as always true for the skill in use.
 OK_CONDITIONS = {"GlobalEffect", "SkillType", "SkillName", "SkillPart"}
 
 
-def flag_list(v):
+FLAG_BITS = {"ModFlag": {}, "KeywordFlag": {}}  # filled from Data/Global.lua: name -> bit
+
+
+def flag_list(v, kind="ModFlag"):
     if v in (None, 0, 0.0):
         return []
     if isinstance(v, Name):
         return [v.split(".")[-1]]
     if isinstance(v, Call) and v.fn in ("bit.bor", "bor"):
-        return [x for a in v.args for x in flag_list(a)]
+        return [x for a in v.args for x in flag_list(a, kind)]
+    if isinstance(v, float):
+        # Numeric masks (Minions.lua): decompose into flag names.
+        n = int(v)
+        return [name for name, bit in FLAG_BITS[kind].items() if bit and n & bit == bit and bin(bit).count("1") == 1]
     return [str(v)]
 
 
@@ -317,7 +325,18 @@ def apply_stat(entry, value, skill_out, mods_out):
             if all(condition_ok(c) for c in conds):
                 val = a[1] if len(a) > 1 and isinstance(a[1], (float, bool)) else v
                 skill_out[a[0]] = skill_out.get(a[0], 0) + (val if isinstance(val, float) else (1.0 if val else 0.0))
-        elif it.fn == "mod" and len(a) >= 2 and a[0] in KEEP_MODS:
+        elif it.fn == "mod" and len(a) >= 3 and a[0] == "MinionModifier" and isinstance(a[2], dict) \
+                and isinstance(a[2].get("mod"), Call):
+            # A modifier for the skill's minions ("Minions deal 30% more Damage").
+            inner = []
+            sub = {k2: v2 for k2, v2 in opts.items() if k2 in ("value",)}
+            apply_stat([a[2]["mod"]] if not sub else dict({1: a[2]["mod"]}, **sub), v, {}, inner)
+            conds = [c for c in a[5:] if isinstance(c, dict)]
+            if all(condition_ok(c) for c in conds):
+                for m in inner:
+                    m["m"] = True
+                    mods_out.append(m)
+        elif it.fn == "mod" and len(a) >= 2 and (a[0] in KEEP_MODS or (isinstance(a[0], str) and LIMIT_MOD.match(a[0]))):
             conds = [c for c in a[5:] if isinstance(c, dict)]
             if not all(condition_ok(c) for c in conds):
                 continue
@@ -326,7 +345,7 @@ def apply_stat(entry, value, skill_out, mods_out):
                 val = opts["value"]
             m = {"n": a[0], "t": a[1], "v": round(val, 4)}
             f = flag_list(a[3] if len(a) > 3 else None)
-            k = flag_list(a[4] if len(a) > 4 else None)
+            k = flag_list(a[4] if len(a) > 4 else None, "KeywordFlag")
             if f: m["f"] = f
             if k: m["k"] = k
             c = [clean_condition(x) for x in conds if x.get("type") in ("SkillType", "SkillName")]
@@ -344,7 +363,7 @@ def lua_round(x):
     return float(int(x + 0.5)) if x >= 0 else -float(int(-x + 0.5))
 
 
-def convert(key, gem, statmap, consts):
+def convert(key, gem, statmap, consts, raw_effectiveness=False):
     own_map = gem.get("statMap") if isinstance(gem.get("statMap"), dict) else {}
 
     def entry(stat):
@@ -359,6 +378,12 @@ def convert(key, gem, statmap, consts):
     }
     if gem.get("support"):
         out["support"] = True
+    if isinstance(gem.get("minionList"), list):
+        out["minions"] = [m for m in gem["minionList"] if isinstance(m, str)]
+    if raw_effectiveness:
+        # Minion skills scale with the minion's level: "skillEff" values × effectiveness(minion level).
+        out["baseEffectiveness"] = float(gem.get("baseEffectiveness") or 1)
+        out["incrementalEffectiveness"] = float(gem.get("incrementalEffectiveness") or 0)
     for f in ("castTime",):
         if isinstance(gem.get(f), float):
             out[f] = gem[f]
@@ -389,12 +414,15 @@ def convert(key, gem, statmap, consts):
             continue
         interp = row.get("statInterpolation") or []
         actor = float(row.get("levelRequirement") or 1)
-        sk, mods = {}, []
+        sk, mods, sk_eff = {}, [], {}
         for idx, stat in enumerate(stats, 1):
             raw = row.get(idx)
             if raw is None:
                 continue
             mode = interp[idx - 1] if isinstance(interp, list) and len(interp) >= idx else 1
+            if mode == 3.0 and isinstance(raw, float) and raw_effectiveness:
+                apply_stat(entry(stat), raw, sk_eff, [])
+                continue
             val = lua_round(effectiveness(consts, gem, actor) * raw) if mode == 3.0 and isinstance(raw, float) else raw
             apply_stat(entry(stat), val, sk, mods)
         L = {"req": int(actor)}
@@ -403,6 +431,7 @@ def convert(key, gem, statmap, consts):
             if isinstance(row.get(src_key), float):
                 L[dst] = round(row[src_key], 4)
         if sk: L["skill"] = {k: round(v, 4) for k, v in sk.items()}
+        if sk_eff: L["skillEff"] = {k: round(v, 6) for k, v in sk_eff.items()}
         if mods: L["mods"] = mods
         levels[str(lvl)] = L
     if levels:
@@ -415,14 +444,46 @@ def main():
     data = os.path.join(pob, "src", "Data")
     misc = open(os.path.join(data, "Misc.lua"), encoding="utf-8").read()
     consts = {k: float(v) for k, v in re.findall(r'\["(SkillDamage\w+Effectiveness)"\]\s*=\s*([\d.]+)', misc)}
+    glob = open(os.path.join(data, "Global.lua"), encoding="utf-8").read()
+    for kind in FLAG_BITS:
+        for name, val in re.findall(kind + r"\.(\w+)\s*=\s*(0x[0-9a-fA-F]+|\d+)", glob):
+            FLAG_BITS[kind][name] = int(val, 16) if val.startswith("0x") else int(val)
     statmap = parse_return_table(open(os.path.join(data, "SkillStatMap.lua"), encoding="utf-8").read())
 
-    skills = {}
+    by_key = {}
     for fn in sorted(os.listdir(os.path.join(data, "Skills"))):
-        if not fn.endswith(".lua"):
+        if fn.endswith(".lua"):
+            by_key.update(parse_assignments(open(os.path.join(data, "Skills", fn), encoding="utf-8").read(), "skills"))
+
+    # Minions (not spectres): base damage multiplier, attack time, their skills, their own mods.
+    minions, minion_skill_ids = {}, set()
+    for key, mn in parse_assignments(open(os.path.join(data, "Minions.lua"), encoding="utf-8").read(), "minions").items():
+        if not isinstance(mn, dict):
             continue
-        src = open(os.path.join(data, "Skills", fn), encoding="utf-8").read()
-        for key, gem in parse_assignments(src, "skills").items():
+        sk_list = [x for x in mn.get("skillList") or [] if isinstance(x, str) and x in by_key]
+        minion_skill_ids.update(sk_list)
+        mods = []
+        for m in mn.get("modList") or []:
+            if isinstance(m, Call):
+                apply_stat([m], 1.0, {}, mods)
+        entry_out = {"name": mn.get("name"), "skills": sk_list}
+        for f in ("damage", "damageSpread", "attackTime", "life"):
+            if isinstance(mn.get(f), float):
+                entry_out[f] = mn[f]
+        if isinstance(mn.get("limit"), str):
+            entry_out["limit"] = mn["limit"]
+        if mn.get("baseDamageIgnoresAttackSpeed") is True:
+            entry_out["ignoresAttackSpeed"] = True
+        if mods:
+            entry_out["mods"] = mods
+        minions[key] = entry_out
+    minion_skills = {k: convert(k, by_key[k], statmap, consts, raw_effectiveness=True) for k in sorted(minion_skill_ids)}
+    ally = re.search(r"data\.monsterAllyDamageTable\s*=\s*\{([^}]*)\}", misc).group(1)
+    ally_table = [round(float(x), 4) for x in ally.split(",") if x.strip()]
+
+    skills = {}
+    for _ in [0]:
+        for key, gem in by_key.items():
             if not isinstance(gem, dict) or not isinstance(gem.get("name"), str):
                 continue
             conv = convert(key, gem, statmap, consts)
@@ -451,12 +512,17 @@ def main():
     out = {
         "source": f"Path of Building Community {version}" + (f" ({commit})" if commit else ""),
         "licence": "MIT, (c) 2016 David Gowor and Path of Building Community contributors; stat data (c) Grinding Gear Games",
+        "constants": consts,
+        "allyDamage": ally_table,
         "skills": dict(sorted(skills.items())),
+        "minions": minions,
+        "minionSkills": minion_skills,
     }
     with open(dest, "w", encoding="utf-8", newline="\n") as f:
         json.dump(out, f, separators=(",", ":"), ensure_ascii=False)
     actives = sum(1 for s in skills.values() if not s.get("support"))
-    print(f"{len(skills)} gems ({actives} active, {len(skills) - actives} support) -> {dest} ({os.path.getsize(dest) // 1024} KB)")
+    print(f"{len(skills)} gems ({actives} active, {len(skills) - actives} support), {len(minions)} minions, "
+          f"{len(minion_skills)} minion skills -> {dest} ({os.path.getsize(dest) // 1024} KB)")
 
 
 if __name__ == "__main__":
