@@ -31,8 +31,11 @@ public sealed class AppHost : IDisposable, IMenuActions
 
     public AppHost()
     {
-        _client = new TradeClient(TradeClient.BuildUserAgent(_settings.Contact));
+        _client = CreateClient();
     }
+
+    /// <summary>The POESESSID (if saved) goes only into this pathofexile.com client.</summary>
+    TradeClient CreateClient() => new(TradeClient.BuildUserAgent(_settings.Contact), SessionStore.Get(_settings));
 
     public async Task StartAsync()
     {
@@ -303,9 +306,10 @@ public sealed class AppHost : IDisposable, IMenuActions
     // ---------------------------------------------------------------- ☰ menu
 
     public AppSettings Settings => _settings;
-    public string StatusText => string.IsNullOrWhiteSpace(_settings.CharacterName)
+    public string StatusText => (string.IsNullOrWhiteSpace(_settings.CharacterName)
         ? $"{_settings.League} · no character set"
-        : $"{_settings.League} · {_settings.CharacterName}";
+        : $"{_settings.League} · {_settings.CharacterName}") + (_client.HasSession ? " · logged in" : "");
+    public void ShowSessionHelp() => new SessionHelpWindow().Show();
     public bool CanReloadCharacter => !string.IsNullOrWhiteSpace(_settings.AccountName) && !string.IsNullOrWhiteSpace(_settings.CharacterName);
     public void ShowSettings() => OpenSettings();
     public void ReloadCharacter() { if (CanReloadCharacter) _build = LoadBuildAsync(); }
@@ -319,7 +323,7 @@ public sealed class AppHost : IDisposable, IMenuActions
         var w = new SettingsWindow(_settings, _leagues);
         if (w.ShowDialog() != true) return;
         _client.Dispose();
-        _client = new TradeClient(TradeClient.BuildUserAgent(_settings.Contact));
+        _client = CreateClient();
         BindHotkeys();
         _build = CanReloadCharacter ? LoadBuildAsync() : null;
     }

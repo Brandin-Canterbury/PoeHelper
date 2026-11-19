@@ -65,6 +65,10 @@
                     <Button Style="{StaticResource MenuRow}" Click="Settings_Click" ToolTip="Account, character, league, hotkeys">
                         <DockPanel><TextBlock Text="⚙" Style="{StaticResource RowIcon}" /><TextBlock Text="Settings" /></DockPanel>
                     </Button>
+                    <Button Style="{StaticResource MenuRow}" Click="SessionHelp_Click"
+                            ToolTip="Optional: log in with your POESESSID cookie for better upgrade searches">
+                        <DockPanel><TextBlock Text="🔑" Style="{StaticResource RowIcon}" /><TextBlock Text="Log in (session cookie) help" /></DockPanel>
+                    </Button>
                     <Button x:Name="ReloadRow" Style="{StaticResource MenuRow}" Click="Reload_Click"
                             ToolTip="Fetch your character's gear and passive tree again (after you change gear)">
                         <DockPanel><TextBlock Text="⟳" Style="{StaticResource RowIcon}" /><TextBlock Text="Reload character" /></DockPanel>

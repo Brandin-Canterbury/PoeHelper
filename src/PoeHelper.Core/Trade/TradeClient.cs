@@ -21,6 +21,8 @@ public sealed class TradeClient : IDisposable
     public const string BaseUrl = "https://www.pathofexile.com";
     readonly HttpClient _http;
     public RateLimiter Limiter { get; } = new();
+    /// <summary>True when a POESESSID cookie is attached (it is only ever sent to pathofexile.com).</summary>
+    public bool HasSession { get; }
 
     public TradeClient(string userAgent, string? poeSessId = null, HttpMessageHandler? handler = null)
     {
@@ -29,7 +31,10 @@ public sealed class TradeClient : IDisposable
         _http.DefaultRequestHeaders.UserAgent.ParseAdd(userAgent);
         _http.DefaultRequestHeaders.Accept.ParseAdd("application/json");
         if (!string.IsNullOrWhiteSpace(poeSessId))
-            _http.DefaultRequestHeaders.Add("Cookie", $"POESESSID={poeSessId}");
+        {
+            _http.DefaultRequestHeaders.Add("Cookie", $"POESESSID={poeSessId.Trim()}");
+            HasSession = true;
+        }
     }
 
     public static string BuildUserAgent(string? contact) =>
@@ -56,6 +61,16 @@ public sealed class TradeClient : IDisposable
                 if (r is JsonObject o) results.Add(o);
         }
         return results;
+    }
+
+    /// <summary>
+    /// True if the session cookie is accepted: pathofexile.com/my-account answers 401 when logged out.
+    /// </summary>
+    public async Task<bool> CheckLoginAsync(CancellationToken ct = default)
+    {
+        if (!HasSession) return false;
+        using var resp = await _http.GetAsync("/my-account", HttpCompletionOption.ResponseHeadersRead, ct);
+        return resp.StatusCode == HttpStatusCode.OK;
     }
 
     public Task<JsonObject> ExchangeAsync(string league, JsonObject query, CancellationToken ct = default) =>

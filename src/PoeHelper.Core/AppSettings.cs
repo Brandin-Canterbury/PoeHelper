@@ -16,6 +16,11 @@ public sealed class AppSettings
     public string CompareHotkey { get; set; } = "Alt+D";
     /// <summary>Ctrl+Alt+C gives mod tiers, which picks better stats. Turn off if it misbehaves.</summary>
     public bool UseAdvancedCopy { get; set; } = true;
+    /// <summary>
+    /// Optional POESESSID, encrypted with Windows DPAPI for the current Windows user (never stored in plain text).
+    /// Only ever sent to pathofexile.com. Lets trade searches use weighted stat groups.
+    /// </summary>
+    public string PoeSessionIdProtected { get; set; } = "";
     /// <summary>Saved ☰ button position in screen pixels (null = default spot).</summary>
     public int? MenuButtonX { get; set; }
     public int? MenuButtonY { get; set; }

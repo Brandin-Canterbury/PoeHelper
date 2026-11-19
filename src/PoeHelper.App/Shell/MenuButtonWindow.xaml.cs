@@ -14,6 +14,7 @@ public interface IMenuActions
     string StatusText { get; }
     bool CanReloadCharacter { get; }
     void ShowSettings();
+    void ShowSessionHelp();
     void ReloadCharacter();
     void RefreshTradeData();
     void OpenLog();
@@ -109,6 +110,7 @@ public partial class MenuButtonWindow : Window
     void Reload_Click(object sender, RoutedEventArgs e) => Run(_app.ReloadCharacter);
     void RefreshData_Click(object sender, RoutedEventArgs e) => Run(_app.RefreshTradeData);
     void Log_Click(object sender, RoutedEventArgs e) => Run(_app.OpenLog);
+    void SessionHelp_Click(object sender, RoutedEventArgs e) => Run(_app.ShowSessionHelp);
     void Quit_Click(object sender, RoutedEventArgs e) => Run(_app.Quit);
 
     void ResetPosition_Click(object sender, RoutedEventArgs e) => Run(() =>

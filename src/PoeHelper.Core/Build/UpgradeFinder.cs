@@ -21,6 +21,8 @@ public sealed class UpgradePlan
     public double CurrentWeightedValue { get; init; }
     public UpgradePriority Priority { get; init; }
     public string? SortStat { get; init; }
+    /// <summary>True when the search used a weighted stat group (needs a logged-in session).</summary>
+    public bool Weighted { get; init; }
 }
 
 public sealed record UpgradeCandidate(Listing Listing, SlotComparison Compare, string? Whisper);
@@ -32,6 +34,7 @@ public sealed class UpgradeResult
     public int Total { get; init; }
     public List<UpgradeCandidate> Candidates { get; } = [];
     public int Rejected { get; set; }
+    public string? Note { get; init; }
 }
 
 /// <summary>
@@ -74,7 +77,11 @@ public static class UpgradeFinder
         _ => null,
     };
 
-    public static UpgradePlan Plan(CharacterBuild build, string slot, TradeData data, double budget, string currency, UpgradePriority priority = UpgradePriority.Auto)
+    /// <summary>Most weighted stats sent when logged in (weighted groups need a session; more = more complex).</summary>
+    public const int MaxWeightedStats = 6;
+
+    public static UpgradePlan Plan(CharacterBuild build, string slot, TradeData data, double budget, string currency,
+        UpgradePriority priority = UpgradePriority.Auto, bool weighted = false)
     {
         build.Items.TryGetValue(slot, out var current);
         var now = BuildCalculator.Compute(build);
@@ -130,8 +137,9 @@ public static class UpgradeFinder
         }
         if (lifeValue <= 0) lifeValue = weights.Count > 0 ? weights.Max(w => w.PerUnit) : 1;
 
-        // Anonymous trade searches reject weighted groups as "too complex", so the search sorts by the single
-        // most valuable stat (value per point × a typical roll) and the full model ranks what comes back.
+        // Logged in: one weighted group of the most valuable stats, sorted by weighted value.
+        // Anonymous: GGG rejects weighted groups as "too complex", so the search sorts by the single
+        // most valuable stat (value per point × a typical roll). Either way the full model ranks the results.
         foreach (var (id, label, perUnit, _) in weights.OrderByDescending(w => w.PerUnit * w.Typical))
         {
             double w = Math.Round(perUnit / lifeValue, 2);
@@ -144,7 +152,14 @@ public static class UpgradeFinder
             : plan.Weights.FirstOrDefault(w => !w.TradeId.StartsWith("pseudo.") && !w.Label.Contains("Life")) ?? plan.Weights.FirstOrDefault();
         var result0Priority = priority;
         double currentValue = current is null ? 0 : WeightedValue(current.Mods, plan.Weights);
-        if (top is not null)
+        // Life always goes in (it's the main stat on most slots); damage stats fill the remaining places.
+        var weightGroup = !weighted ? [] : plan.Weights.Where(w => w.TradeId == "pseudo.pseudo_total_life" || w.Label.Contains("maximum Life"))
+            .Concat(plan.Weights.Where(w => w.TradeId != "pseudo.pseudo_total_life" && !w.Label.Contains("maximum Life")))
+            .Take(MaxWeightedStats).ToList();
+        double currentWeighted = current is null ? 0 : WeightedValue(current.Mods, weightGroup);
+        if (weightGroup.Count > 0)
+            constraints.Add($"weighted value ≥ {currentWeighted:0} (your current item's): {string.Join(", ", weightGroup.Select(w => $"{w.Label.Replace("#", "").Replace("+", "").Trim()} ×{w.Weight}"))}");
+        else if (top is not null)
         {
             double currentTop = current is null ? 0 : WeightedValue(current.Mods, [top with { Weight = 1 }]);
             if (currentTop > 0)
@@ -175,6 +190,16 @@ public static class UpgradeFinder
         constraints.Add($"Instant Buyout, ≤ {budget.ToString("0.##", CultureInfo.InvariantCulture)} {(currency == "divine" ? "div" : "c")}");
 
         var stats = new JsonArray { new JsonObject { ["type"] = "and", ["filters"] = andFilters } };
+        if (weightGroup.Count > 0)
+            stats.Add(new JsonObject
+            {
+                ["type"] = "weight",
+                ["value"] = new JsonObject { ["min"] = Math.Floor(currentWeighted) },
+                ["filters"] = new JsonArray(weightGroup.Select(w => (JsonNode)new JsonObject
+                {
+                    ["id"] = w.TradeId, ["value"] = new JsonObject { ["weight"] = w.Weight }, ["disabled"] = false,
+                }).ToArray()),
+            });
 
         var query = new JsonObject
         {
@@ -184,9 +209,15 @@ public static class UpgradeFinder
                 ["stats"] = stats,
                 ["filters"] = filters,
             },
-            ["sort"] = top is not null ? new JsonObject { [$"stat.{top.TradeId}"] = "desc" } : new JsonObject { ["price"] = "asc" },
+            ["sort"] = weightGroup.Count > 0 ? new JsonObject { ["statgroup.1"] = "desc" }
+                     : top is not null ? new JsonObject { [$"stat.{top.TradeId}"] = "desc" }
+                     : new JsonObject { ["price"] = "asc" },
         };
-        var result = new UpgradePlan { Slot = slot, Query = query, CurrentWeightedValue = currentValue, Priority = result0Priority, SortStat = top?.Label };
+        var result = new UpgradePlan
+        {
+            Slot = slot, Query = query, CurrentWeightedValue = currentValue, Priority = result0Priority,
+            SortStat = weightGroup.Count > 0 ? "weighted value" : top?.Label, Weighted = weightGroup.Count > 0,
+        };
         result.Constraints.AddRange(constraints);
         result.Weights.AddRange(plan.Weights);
         return result;
@@ -197,11 +228,23 @@ public static class UpgradeFinder
         int fetch = 20, CancellationToken ct = default)
     {
         await rates.EnsureFreshAsync(client, league, ct);
-        var plan = Plan(build, slot, data, budget, currency, priority);
-        var search = await client.SearchAsync(league, plan.Query, ct);
+        var plan = Plan(build, slot, data, budget, currency, priority, weighted: client.HasSession);
+        SearchResult search;
+        string? note = null;
+        try
+        {
+            search = await client.SearchAsync(league, plan.Query, ct);
+        }
+        catch (TradeApiException ex) when (plan.Weighted && ex.Message.Contains("too complex", StringComparison.OrdinalIgnoreCase))
+        {
+            // The session didn't raise the limit (expired cookie?): fall back to the single-stat search.
+            plan = Plan(build, slot, data, budget, currency, priority, weighted: false);
+            search = await client.SearchAsync(league, plan.Query, ct);
+            note = "Weighted search was refused (session expired?), so this used the single-stat search.";
+        }
         var result = new UpgradeResult
         {
-            Plan = plan, Total = search.Total,
+            Plan = plan, Total = search.Total, Note = note,
             SearchUrl = $"{TradeClient.BaseUrl}/trade/search/{Uri.EscapeDataString(league)}/{search.Id}",
         };
         if (search.Ids.Count == 0) return result;

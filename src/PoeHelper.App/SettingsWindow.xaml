@@ -39,6 +39,20 @@
                       Content="Use advanced copy (Ctrl+Alt+C) to read mod tiers" />
         </Grid>
 
+        <DockPanel Margin="0,14,0,2">
+            <Button DockPanel.Dock="Right" Content="How do I get this?" Style="{StaticResource FlatButton}" Padding="8,2" Click="OnSessionHelp" />
+            <TextBlock Text="Log in with your session cookie (optional)" FontWeight="SemiBold" Foreground="{StaticResource Gold}" VerticalAlignment="Center" />
+        </DockPanel>
+        <TextBlock Text="Your POESESSID lets Find upgrade use weighted searches (better results) and raises some rate limits. It's stored encrypted for your Windows user and only ever sent to pathofexile.com. Treat it like a password."
+                   Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4" />
+        <DockPanel>
+            <Button DockPanel.Dock="Right" Content="Clear" Style="{StaticResource FlatButton}" Padding="8,2" Margin="6,0,0,0" Click="OnSessionClear" />
+            <Button DockPanel.Dock="Right" Content="Test" Style="{StaticResource FlatButton}" Padding="8,2" Margin="6,0,0,0" Click="OnSessionTest" />
+            <PasswordBox x:Name="SessionId" Background="{StaticResource ControlBg}" Foreground="{StaticResource Text}" BorderBrush="{StaticResource PanelBorder}"
+                         CaretBrush="{StaticResource Gold}" Padding="4,3" PasswordChar="●" />
+        </DockPanel>
+        <TextBlock x:Name="SessionStatus" Foreground="{StaticResource Muted}" FontSize="12" TextWrapping="Wrap" Margin="0,4,0,0" />
+
         <TextBlock Text="Contact for GGG (optional)" FontWeight="SemiBold" Foreground="{StaticResource Gold}" Margin="0,14,0,2" />
         <TextBlock Text="Added to the User-Agent so GGG can reach you if the tool misbehaves. Email or forum name."
                    Foreground="{StaticResource Muted}" TextWrapping="Wrap" FontSize="12" Margin="0,0,0,4" />

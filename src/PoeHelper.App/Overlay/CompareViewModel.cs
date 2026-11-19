@@ -104,7 +104,9 @@ public sealed class CompareViewModel : Observable
                             : $"{r.Total} listed, but none of the ones checked beat your current item without breaking something.")
             : $"Best {Math.Min(10, r.Candidates.Count)} of {(r.Total >= 10000 ? "10,000+" : r.Total.ToString("N0"))} listed, ranked by life + damage for your build"
               + (r.Rejected > 0 ? $" ({r.Rejected} rejected: they'd break resists, sockets or requirements)" : "")
-              + ". Buy on the trade site.";
+              + ". Buy on the trade site."
+              + (r.Plan.Weighted ? " (Weighted search: logged in.)" : "")
+              + (r.Note is null ? "" : " " + r.Note);
         Raise(nameof(HasUpgrades));
     }
     string _title = "";

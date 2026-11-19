@@ -216,6 +216,79 @@
         </Setter>
     </Style>
 
+    <!-- ComboBox: dark field, bronze arrow, dark drop-down (works editable or not) -->
+    <Style TargetType="ComboBoxItem">
+        <Setter Property="Foreground" Value="{StaticResource Text}" />
+        <Setter Property="Padding" Value="6,3" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBoxItem">
+                    <Border x:Name="b" Background="Transparent" Padding="{TemplateBinding Padding}">
+                        <ContentPresenter />
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsHighlighted" Value="True">
+                            <Setter TargetName="b" Property="Background" Value="{StaticResource ControlHover}" />
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Foreground" Value="{StaticResource Gold}" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <Style TargetType="ComboBox">
+        <Setter Property="Foreground" Value="{StaticResource Text}" />
+        <Setter Property="Background" Value="{StaticResource ControlBg}" />
+        <Setter Property="BorderBrush" Value="{StaticResource PanelBorder}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="ComboBox">
+                    <Grid>
+                        <ToggleButton x:Name="toggle" Focusable="False" ClickMode="Press"
+                                      IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}">
+                            <ToggleButton.Template>
+                                <ControlTemplate TargetType="ToggleButton">
+                                    <Border x:Name="field" Background="{StaticResource ControlBg}" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="2">
+                                        <Path HorizontalAlignment="Right" VerticalAlignment="Center" Margin="0,0,8,0"
+                                              Data="M 0,0 L 4,4 L 8,0" Stroke="{StaticResource Accent}" StrokeThickness="1.5" />
+                                    </Border>
+                                    <ControlTemplate.Triggers>
+                                        <Trigger Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="field" Property="BorderBrush" Value="{StaticResource Accent}" />
+                                        </Trigger>
+                                    </ControlTemplate.Triggers>
+                                </ControlTemplate>
+                            </ToggleButton.Template>
+                        </ToggleButton>
+                        <ContentPresenter x:Name="content" IsHitTestVisible="False" Margin="6,3,24,3" VerticalAlignment="Center"
+                                          Content="{TemplateBinding SelectionBoxItem}" ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}" />
+                        <TextBox x:Name="PART_EditableTextBox" Visibility="Hidden" Margin="1,1,22,1" Background="Transparent" BorderThickness="0"
+                                 Foreground="{StaticResource Text}" CaretBrush="{StaticResource Gold}" Padding="4,2" VerticalContentAlignment="Center"
+                                 IsReadOnly="{TemplateBinding IsReadOnly}" />
+                        <Popup x:Name="PART_Popup" Placement="Bottom" AllowsTransparency="True" Focusable="False" PopupAnimation="Fade"
+                               IsOpen="{TemplateBinding IsDropDownOpen}">
+                            <Border Background="#F01A1612" BorderBrush="{StaticResource PanelBorder}" BorderThickness="1" CornerRadius="2"
+                                    MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource TemplatedParent}}" MaxHeight="260">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <ItemsPresenter KeyboardNavigation.DirectionalNavigation="Contained" />
+                                </ScrollViewer>
+                            </Border>
+                        </Popup>
+                    </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible" />
+                            <Setter TargetName="content" Property="Visibility" Value="Hidden" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <!-- Dark inputs for the settings window -->
     <Style TargetType="TextBox">
         <Setter Property="Foreground" Value="{StaticResource Text}" />

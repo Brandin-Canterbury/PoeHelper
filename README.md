@@ -79,7 +79,15 @@ Set a budget (div or c) and a priority (Life or Damage), then click **Find upgra
 
 **Open on trade site** opens the search so you can buy.
 
-Anonymous trade searches can't use weighted stat groups (GGG returns "Query is too complex"), so the search sorts on one stat and the ranking happens locally.
+**Logged in** (see below): the search uses one weighted stat group, with life plus your build's best damage stats and weights from your build. It's sorted by weighted value, with your current item's value as the floor.
+**Anonymous:** GGG refuses weighted groups ("Query is too complex"), so the search sorts on one stat and the ranking happens locally. If a weighted search is refused, for example because the session expired, it falls back to this automatically.
+
+## Logging in with your session cookie (optional)
+
+Settings → **Log in with your session cookie**: paste your `POESESSID`, press **Test**, then **Save**. **How do I get this?** (also in the ☰ menu) walks through copying it from your browser (F12 → Application/Storage → Cookies → pathofexile.com → `POESESSID`).
+- **Storage:** encrypted with Windows DPAPI for your Windows user, so it can't be read on another PC or by another user. It's never written to the log.
+- **Where it goes:** only ever sent to pathofexile.com.
+- **Treat it like a password:** anyone with it is logged in to the website as you. Logging out of pathofexile.com ends the session, which revokes it.
 
 ## Reading the price check
 
@@ -101,6 +109,7 @@ Anonymous trade searches can't use weighted stat groups (GGG returns "Query is t
 | Nothing happens on Ctrl+D | Make sure PoE is focused and windowed, and that another tool (APT, Exiled Exchange) isn't also bound to Ctrl+D. |
 | "Rate limit: try again in N s" | The trade site limits searches per IP (about 5 per 10 s). Wait it out; the app never retries on its own. |
 | "Character data is private" | Make the Characters tab public (see above). |
+| Test says the session wasn't accepted | It expired, or you logged out of the website. Copy a fresh `POESESSID`. |
 | Compare shows old gear | ☰ → Reload character, or the button on the compare panel. |
 | Wrong or odd search | Tray → **Open log**. Every checked item's text is logged; attach it to an issue. |
 | Stale stats after a patch | Tray → **Refresh trade data**. |
