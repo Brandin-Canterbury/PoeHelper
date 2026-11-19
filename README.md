@@ -179,7 +179,7 @@ Character data comes from the public character API (`/character-window/get-items
 
 ## Credits
 
-Gem data (base damage, levels, support multipliers) is imported from [Path of Building Community](https://github.com/PathOfBuildingCommunity/PathOfBuilding), MIT licence, © 2016 David Gowor and contributors; stat data © Grinding Gear Games. The bundled copy is `src/PoeHelper.Core/Data/skills.json`. To refresh it for a new league, clone Path of Building and run:
+Gem data (base damage, levels, support multipliers) is imported from [Path of Building Community](https://github.com/PathOfBuildingCommunity/PathOfBuilding), MIT licence, © 2016 David Gowor and contributors; stat data © Grinding Gear Games. The licence text is in [THIRD-PARTY-NOTICES.md](THIRD-PARTY-NOTICES.md). The bundled copy is `src/PoeHelper.Core/Data/skills.json`. To refresh it for a new league, clone Path of Building and run:
 
 ```
 python -I tools/pob-import/import_pob.py <PathOfBuilding checkout> src/PoeHelper.Core/Data/skills.json
